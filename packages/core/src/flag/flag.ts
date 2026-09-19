@@ -1,3 +1,4 @@
+import "./env-compat"
 import { Config } from "effect"
 
 export function truthy(key: string) {
