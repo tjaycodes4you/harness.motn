@@ -8,8 +8,10 @@ let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
 
 export const UI_UPSTREAM = new URL("https://app.opencode.ai")
 
+// `https://static.cloudflareinsights.com` is allowed because Cloudflare injects
+// its Web Analytics beacon into HTML responses at the edge.
 export const csp = (hash = "") =>
-  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src * data:`
+  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src * data:`
 export const DEFAULT_CSP = csp()
 
 export function themePreloadHash(body: string) {

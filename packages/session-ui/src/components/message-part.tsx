@@ -707,14 +707,16 @@ function index<T extends { id: string }>(items: readonly T[]) {
   return new Map(items.map((item) => [item.id, item] as const))
 }
 
-export function renderable(part: PartType, showReasoningSummaries = true) {
+export function renderable(part: PartType, _showReasoningSummaries = true) {
   if (part.type === "tool") {
     if (HIDDEN_TOOLS.has(part.tool)) return false
     if (part.tool === "question") return part.state.status !== "pending" && part.state.status !== "running"
     return true
   }
   if (part.type === "text") return !!part.text?.trim()
-  if (part.type === "reasoning") return showReasoningSummaries && !!part.text?.trim()
+  // Reasoning always renders (collapsed via its own disclosure); the
+  // `showReasoningSummaries` setting no longer gates visibility.
+  if (part.type === "reasoning") return !!part.text?.trim()
   return !!PART_MAPPING[part.type]
 }
 
@@ -1768,17 +1770,31 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   const data = useData()
   const part = () => props.part as ReasoningPart
+  const i18n = useI18n()
   const streaming = createMemo(
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
+  const [open, setOpen] = createSignal(false)
 
   return (
     <Show when={text()}>
       <div data-component="reasoning-part" data-timeline-part-id={part().id}>
-        <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
-        </Show>
+        <Collapsible open={open() || streaming()} onOpenChange={setOpen} variant="ghost" class="reasoning-collapsible">
+          <Collapsible.Trigger>
+            <div data-slot="reasoning-trigger">
+              <span data-slot="reasoning-trigger-title">{i18n.t("ui.sessionTurn.status.thinking")}</span>
+              <Collapsible.Arrow />
+            </div>
+          </Collapsible.Trigger>
+          <Collapsible.Content>
+            <div data-slot="reasoning-content">
+              <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
+                <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+              </Show>
+            </div>
+          </Collapsible.Content>
+        </Collapsible>
       </div>
     </Show>
   )

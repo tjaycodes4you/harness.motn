@@ -290,6 +290,22 @@
   color: var(--v2-text-text-muted);
   line-height: var(--line-height-normal);
 
+  [data-slot="reasoning-trigger"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--v2-text-text-muted);
+
+    [data-slot="reasoning-trigger-title"] {
+      font-size: 13px;
+    }
+  }
+
+  [data-slot="reasoning-content"] {
+    margin-top: 4px;
+  }
+
   [data-component="markdown"] {
     margin-top: 16px;
     font-style: normal;
