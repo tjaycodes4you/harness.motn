@@ -74,4 +74,27 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
      used (`createServerSessionEntries`).
   Verified live: 64 rows on a fresh home, `TM ACO` → 1, `walmart` → 6, 0 console
   errors; site suite extended with a home-search case, 5/5 on test + live.
+- **F8 — global search opens under the selected project; new project; sync button.**
+  Three home/settings additions:
+  1. `home-sessions-controller.open` now keeps the currently selected project:
+     when `home.project.selected()` exists it opens the tab under that directory
+     instead of switching to the directory that owns the session. So a global
+     search hit can be opened in place without losing your project context.
+  2. **New project** button on the home (`data-action="home-new-project"`) opens
+     `dialog-new-project.tsx`; creating calls a new server route
+     `POST /experimental/motn/mkdir` (`{ path }`) and adds the directory as a
+     project. The web uses the V1 directory dialog, which has no footer to host a
+     "new folder" control, hence a dedicated dialog.
+  3. **Settings → General → Data → Sync now** calls
+     `POST /experimental/motn/sync`, which runs the same additive merge as
+     `bin/harness-sync.ts` using a second `bun:sqlite` connection (foreign_keys
+     OFF, ATTACH, INSERT OR IGNORE, every table except `migration`). It returns
+     per-table insert counts; the button toasts "already up to date" or
+     "{{count}} new rows added".
+  Both routes are raw `HttpRouter.use` routes added to the merge in
+  `httpapi/server.ts`, so they are outside the declared HttpApi and need no SDK
+  regeneration; the app calls them with plain `fetch` via `utils/motn-api.ts`.
+  Verified: fresh-target sync inserted 198 sessions / 35 523 messages /
+  139 281 parts / 607 089 events in ~43s; test + live site suites 6/6.
+
 

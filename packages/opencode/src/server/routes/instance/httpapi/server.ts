@@ -67,6 +67,7 @@ import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
 import { lazy } from "@/util/lazy"
+import { defaultSource as motnDefaultSource, syncSessions as motnSyncSessions } from "@/motn/sync"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opencode-ai/server/cors"
 import { serveUIEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
@@ -202,6 +203,44 @@ const uiRoute = HttpRouter.use((router) =>
   }),
 ).pipe(Layer.provide(authOnlyRouterLayer))
 
+// harness.motn additions: additive session sync from the plain opencode install,
+// and directory creation for the "new project" flow. Raw routes (outside the
+// declared HttpApi) so the generated SDK does not need regenerating.
+const motnRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    const fs = yield* FSUtil.Service
+    yield* router.add("POST", "/experimental/motn/sync", () =>
+      Effect.gen(function* () {
+        const target = Database.path()
+        const source = motnDefaultSource(target)
+        if (!(yield* fs.exists(source))) {
+          return HttpServerResponse.jsonUnsafe({ error: `no source database at ${source}`, source, target }, { status: 404 })
+        }
+        const result = yield* Effect.result(
+          Effect.try({
+            try: () => motnSyncSessions(source, target),
+            catch: (cause) => (cause instanceof Error ? cause.message : String(cause)),
+          }),
+        )
+        if (result._tag === "Failure") {
+          return HttpServerResponse.jsonUnsafe({ error: result.failure, source, target }, { status: 500 })
+        }
+        return HttpServerResponse.jsonUnsafe(result.success)
+      }),
+    )
+    yield* router.add("POST", "/experimental/motn/mkdir", (request) =>
+      Effect.gen(function* () {
+        const body = (yield* request.json) as { path?: unknown }
+        const path = typeof body?.path === "string" ? body.path.trim() : ""
+        if (!path) return HttpServerResponse.jsonUnsafe({ error: "missing path" }, { status: 400 })
+        if (yield* fs.exists(path)) return HttpServerResponse.jsonUnsafe({ path, created: false })
+        yield* fs.ensureDir(path)
+        return HttpServerResponse.jsonUnsafe({ path, created: true })
+      }),
+    )
+  }),
+).pipe(Layer.provide(authOnlyRouterLayer))
+
 type RouteRequirements =
   | HttpRouter.HttpRouter
   | HttpRouter.Request<"Error", unknown>
@@ -281,6 +320,7 @@ export function createRoutes(
     serverRoutes,
     docRoute,
     uiRoute,
+    motnRoute,
   ).pipe(
     Layer.provide([
       errorLayer,

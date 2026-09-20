@@ -95,6 +95,14 @@ export function createHomeProjectsController(home: HomeController) {
           onSelect: (result) => home.project.add(conn, homeProjectDirectories(result)),
         })
       },
+      create: (conn: ServerConnection.Any) => {
+        if (home.server.health(conn)?.healthy === false) return
+        void import("@/components/dialog-new-project").then(({ DialogNewProject }) => {
+          void dialog.show(() => (
+            <DialogNewProject server={conn} onCreated={(directory) => home.project.add(conn, [directory])} />
+          ))
+        })
+      },
       close: (conn: ServerConnection.Any, directory: string) => {
         const next = closeHomeProject(
           home.selection.value(),

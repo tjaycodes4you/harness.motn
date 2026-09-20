@@ -182,6 +182,14 @@ export function createHomeSessionsController(home: HomeController) {
       canCreate: () => !!home.project.newSession(),
       create: home.project.openNewSession,
       open: (session: Session, options?: OpenSessionOptions) => {
+        const conn = home.server.focused()
+        if (!conn) return
+        const ctx = home.server.focusedContext()
+        if (!ctx) return
+        // When a project is selected, open the session under it (keep the
+        // selection) instead of jumping to whichever project owns the session —
+        // this is what lets a global search result be opened in place.
+        const selected = home.project.selected()
         const directoryKey = pathKey(session.directory)
         const project =
           home.project
@@ -191,11 +199,7 @@ export function createHomeSessionsController(home: HomeController) {
                 pathKey(item.worktree) === directoryKey ||
                 item.sandboxes?.some((sandbox) => pathKey(sandbox) === directoryKey),
             ) ?? projectForSession(session, home.project.list(), projectByID())
-        const conn = home.server.focused()
-        if (!conn) return
-        const directory = project?.worktree ?? session.directory
-        const ctx = home.server.focusedContext()
-        if (!ctx) return
+        const directory = selected?.worktree ?? project?.worktree ?? session.directory
         ctx.projects.open(directory)
         if (options?.background) {
           tabs.addSessionTab({ server: ServerConnection.key(conn), sessionId: session.id })

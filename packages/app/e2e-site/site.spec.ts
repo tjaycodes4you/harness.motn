@@ -71,6 +71,15 @@ test.describe("site smoke", () => {
     expect(await results.count(), "server-side search should match sessions from every project").toBeGreaterThan(0)
   })
 
+  test("home exposes new-project and settings exposes session sync", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" })
+    await expect(page.locator('[data-action="home-new-project"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-action="home-add-project"]').first()).toBeVisible({ timeout: 30_000 })
+
+    await page.getByText("Settings", { exact: true }).first().click()
+    await expect(page.locator('[data-action="settings-motn-sync"]').first()).toBeVisible({ timeout: 30_000 })
+  })
+
   test("known reasoning session renders a Thinking trace", async ({ page, baseURL }) => {
     const errors = trackErrors(page)
     await page.goto(sessionHref(REASONING_SESSION, baseURL), { waitUntil: "domcontentloaded" })

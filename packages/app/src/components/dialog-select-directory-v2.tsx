@@ -8,6 +8,8 @@ import { createEffect, createMemo, createResource, createSignal, For, onCleanup,
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
+import { motnPost } from "@/utils/motn-api"
+import { showToast } from "@/utils/toast"
 import type { Path } from "@opencode-ai/sdk/v2/client"
 import {
   absoluteTreePath,
@@ -58,6 +60,8 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal(false)
   const [rootValid, setRootValid] = createSignal(false)
+  const [creating, setCreating] = createSignal(false)
+  const [newName, setNewName] = createSignal("")
   const listings = new Map<string, Promise<Array<{ name: string; type: "file" | "directory" }> | undefined>>()
   const loads = createPriorityTaskQueue<Array<{ name: string; type: "file" | "directory" }> | undefined>(3)
   const advanced = new Set<string>()
@@ -232,6 +236,27 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
     dialog.close()
   }
 
+  // "New project" flow: create a folder inside the folder being browsed, then
+  // open it so the normal Select action adds it as a project.
+  async function createFolder() {
+    const name = newName().trim()
+    const server = (props.server as { http?: ServerConnection.HttpBase }).http
+    if (!name || !server) return
+    try {
+      const result = await motnPost<{ path: string }>(server, "/experimental/motn/mkdir", {
+        path: `${(root() || home()).replace(/[\\/]+$/, "")}/${name}`,
+      })
+      setCreating(false)
+      setNewName("")
+      await navigate(result.path)
+    } catch (cause) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: cause instanceof Error ? cause.message : String(cause),
+      })
+    }
+  }
+
   onMount(() => {
     const closeSuggestions = (event: PointerEvent) => {
       if (pathArea?.contains(event.target as Node)) return
@@ -322,6 +347,43 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
             <ButtonV2 size="small" variant="ghost" onClick={() => void navigate(pickerParent(root()))}>
               {language.t("dialog.directory.parent")}
             </ButtonV2>
+            <Show
+              when={creating()}
+              fallback={
+                <ButtonV2
+                  data-action="directory-new-folder"
+                  size="small"
+                  variant="ghost"
+                  onClick={() => setCreating(true)}
+                >
+                  {language.t("dialog.directory.newFolder")}
+                </ButtonV2>
+              }
+            >
+              <TextInputV2
+                value={newName()}
+                autofocus
+                autocomplete="off"
+                spellcheck={false}
+                class="!w-40"
+                placeholder={language.t("dialog.directory.newFolder")}
+                onInput={(event) => setNewName(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    void createFolder()
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault()
+                    setCreating(false)
+                    setNewName("")
+                  }
+                }}
+              />
+              <ButtonV2 data-action="directory-create-folder" size="small" variant="contrast" onClick={() => void createFolder()}>
+                {language.t("common.create")}
+              </ButtonV2>
+            </Show>
           </div>
           <Show when={suggestionsOpen() && currentSuggestions().length > 0}>
             <div id="directory-picker-v2-suggestions" role="listbox" class="directory-picker-v2-suggestions">
