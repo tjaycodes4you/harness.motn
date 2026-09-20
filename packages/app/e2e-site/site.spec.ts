@@ -61,7 +61,7 @@ test.describe("site smoke", () => {
     await page.goto(sessionHref(NO_RESPONSE_SESSION, baseURL), { waitUntil: "domcontentloaded" })
     await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
 
-    const row = page.locator('[data-slot="session-turn-no-response"]')
+    const row = page.locator('[data-slot="session-turn-no-response"]').first()
     await expect(row).toBeVisible({ timeout: 30_000 })
     await expect(row.getByText("No response was generated.")).toBeVisible()
     await expect(row.getByRole("button", { name: "Retry" })).toBeVisible()
