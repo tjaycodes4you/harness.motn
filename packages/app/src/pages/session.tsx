@@ -1919,7 +1919,34 @@ export default function Page() {
     download()
   }
 
-  const actions = { revert, openAttachment }
+  const retry = async (input: { sessionID: string; messageID: string }) => {
+    const message = userMessages().find((item) => item.id === input.messageID)
+    if (!message) return
+    await sdk()
+      .api.session.interrupt({ sessionID: input.sessionID })
+      .catch(() => {})
+    const ok = await sendFollowupDraft({
+      api: sdk().api.session,
+      sync: sync(),
+      serverSync: serverSync(),
+      draft: {
+        sessionID: input.sessionID,
+        sessionDirectory: sdk().directory,
+        prompt: draft(input.messageID),
+        context: [],
+        agent: message.agent,
+        model: { providerID: message.model.providerID, modelID: message.model.modelID },
+        variant: message.model.variant,
+      },
+      optimisticBusy: true,
+    }).catch((err) => {
+      fail(err)
+      return false
+    })
+    if (ok) resumeScroll()
+  }
+
+  const actions = { revert, retry, openAttachment }
 
   createEffect(() => {
     const sessionID = params.id

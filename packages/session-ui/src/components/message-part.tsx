@@ -177,6 +177,7 @@ export type SessionAction = (input: { sessionID: string; messageID: string }) =>
 export type UserActions = {
   fork?: SessionAction
   revert?: SessionAction
+  retry?: SessionAction
   openAttachment?: (file: FilePart) => void
 }
 

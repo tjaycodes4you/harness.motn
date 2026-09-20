@@ -27,6 +27,7 @@ export type TimelineRowMap = {
   }
   Thinking: { userMessageID: string; reasoningHeading?: string }
   Retry: { userMessageID: string }
+  NoResponse: { userMessageID: string }
   DiffSummary: { userMessageID: string; diffs: SummaryDiff[] }
   Error: { userMessageID: string; text: string }
 }
@@ -201,6 +202,24 @@ export namespace Timeline {
           reasoningHeading: heading,
         }),
       )
+    }
+
+    // An assistant turn that finished without any output is surfaced explicitly
+    // instead of rendering as a silent gap (the model returned 0 tokens/parts).
+    const assistantOutputTokens = assistantMessages.reduce(
+      (sum, message) => sum + (message.tokens?.output ?? 0) + (message.tokens?.reasoning ?? 0),
+      0,
+    )
+    if (
+      assistantMessages.length > 0 &&
+      !interrupted &&
+      !error &&
+      assistantPartRefs.length === 0 &&
+      status !== "busy" &&
+      status !== "retry" &&
+      assistantOutputTokens === 0
+    ) {
+      rows.push(new TimelineRow.NoResponse({ userMessageID: userMessage.id }))
     }
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))

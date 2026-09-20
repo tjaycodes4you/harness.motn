@@ -1248,6 +1248,38 @@ export function MessageTimeline(props: {
           </TimelineRowFrame>
         )
       }
+      case "NoResponse": {
+        const noResponseRow = row as Accessor<TimelineRowByTag<"NoResponse">>
+        const sessionID = () => messageByID().get(noResponseRow().userMessageID)?.sessionID
+        return (
+          <TimelineRowFrame row={noResponseRow}>
+            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+              <div
+                data-slot="session-turn-no-response"
+                class="flex items-center justify-between gap-3 rounded-[6px] border border-border-weak-base bg-background-stronger px-3 py-2"
+              >
+                <span class="text-12-regular text-text-weak">No response was generated.</span>
+                <Show when={sessionID()}>
+                  {(id) => (
+                    <Show when={props.actions?.retry}>
+                      {(retry) => (
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          data-action="retry-no-response"
+                          onClick={() => retry()({ sessionID: id(), messageID: noResponseRow().userMessageID })}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                    </Show>
+                  )}
+                </Show>
+              </div>
+            </div>
+          </TimelineRowFrame>
+        )
+      }
     }
   }
 
