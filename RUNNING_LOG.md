@@ -27,3 +27,17 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - **F3 — silent empty assistant turns surfaced.** `TimelineRow.NoResponse`
   renders "No response was generated." + Retry when an assistant turn produced no
   parts and 0 tokens (previously rendered as nothing).
+- **F4 — project `.opencode` tools failed to install (empty turns).** Any project
+  whose `.opencode/tool|plugin/*.ts` imports `@opencode-ai/plugin` needs that dep
+  installed into `.opencode`. `packages/opencode/src/config/config.ts` (and
+  `tui.ts`) pinned it to `InstallationVersion` unless the channel was `local`.
+  Our builds are channel `dev` with an **unpublished** `0.0.0-dev-<ts>` version,
+  so `npm install` failed with
+  `NpmInstallFailedError: @opencode-ai/plugin@0.0.0-dev-…`, the import didn't
+  resolve, `prompt_async` died with `Cannot find module '@opencode-ai/plugin'`,
+  and the turn rendered as an empty (now "No response") assistant message —
+  observed in `C:\Users\TJ\ZCodeProject\opencode` (`ses_f4571d8a…`).
+  - Fix: pin only on real release channels —
+    `["latest","beta","prod"].includes(InstallationChannel) ? InstallationVersion : undefined`
+    — so preview/dev builds install the published `@opencode-ai/plugin` (now
+    `1.18.31`). Mirrors the `database.path()` channel rule.

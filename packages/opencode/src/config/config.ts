@@ -11,7 +11,7 @@ import { Flag } from "@opencode-ai/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { applyEdits, modify } from "jsonc-parser"
-import { InstallationLocal, InstallationVersion } from "@opencode-ai/core/installation/version"
+import { InstallationChannel, InstallationVersion } from "@opencode-ai/core/installation/version"
 import { existsSync } from "fs"
 import { Account } from "@/account/account"
 import { isRecord } from "@/util/record"
@@ -440,7 +440,13 @@ const layer = Layer.effect(
               add: [
                 {
                   name: "@opencode-ai/plugin",
-                  version: InstallationLocal ? undefined : InstallationVersion,
+                  // Only pin the plugin to the running version on real release
+                  // channels. Preview/dev builds carry an unpublished
+                  // `0.0.0-<channel>-<ts>` version that npm cannot resolve, which
+                  // broke project `.opencode` dependency installs for every repo.
+                  version: ["latest", "beta", "prod"].includes(InstallationChannel)
+                    ? InstallationVersion
+                    : undefined,
                 },
               ],
             })
