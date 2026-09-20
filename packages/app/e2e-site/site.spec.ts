@@ -1,0 +1,80 @@
+import { expect, test, type Page } from "@playwright/test"
+
+// Fixture session known to contain reasoning parts; override with SITE_REASONING_SESSION.
+const REASONING_SESSION = process.env.SITE_REASONING_SESSION ?? "ses_01bd8d72fffec8lCoY29BUsNM3"
+// Fixture session whose assistant turn produced no output (empty parts, 0 tokens).
+const NO_RESPONSE_SESSION = process.env.SITE_NO_RESPONSE_SESSION ?? "ses_f4571d8a5ffeHmWaiFEq4fiiqd"
+
+// Matches @opencode-ai/core/util/encode base64Encode (url-safe, unpadded).
+function base64Encode(value: string) {
+  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+function sessionHref(sessionID: string, baseURL: string | undefined) {
+  return `/server/${base64Encode((baseURL ?? "").replace(/\/$/, ""))}/session/${sessionID}`
+}
+
+// Console noise that is not an app defect.
+const BENIGN = [/MaxListenersExceededWarning/i, /favicon/i, /ERR_INTERNET_DISCONNECTED/i]
+
+function trackErrors(page: Page) {
+  const errors: string[] = []
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text())
+  })
+  page.on("pageerror", (error) => errors.push(String(error)))
+  return errors
+}
+
+function appErrors(errors: string[]) {
+  return errors.filter((error) => !BENIGN.some((pattern) => pattern.test(error)))
+}
+
+test.describe("site smoke", () => {
+  test("home renders with motn title and no console errors", async ({ page }) => {
+    const errors = trackErrors(page)
+    await page.goto("/", { waitUntil: "domcontentloaded" })
+    await expect(page).toHaveTitle(/motn/i)
+    await expect(page.locator("#root")).toBeVisible()
+    await page.waitForTimeout(4000)
+    expect(appErrors(errors)).toEqual([])
+  })
+
+  test("known reasoning session renders a Thinking trace", async ({ page, baseURL }) => {
+    const errors = trackErrors(page)
+    await page.goto(sessionHref(REASONING_SESSION, baseURL), { waitUntil: "domcontentloaded" })
+    await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
+
+    const thinking = page.getByText("Thinking", { exact: true }).first()
+    await expect(thinking).toBeVisible({ timeout: 30_000 })
+
+    const before = (await page.innerText("body")).length
+    await thinking.click()
+    await page.waitForTimeout(1500)
+    const after = (await page.innerText("body")).length
+    expect(after, "expanding Thinking should reveal more text").toBeGreaterThan(before)
+
+    expect(appErrors(errors)).toEqual([])
+  })
+
+  test("empty assistant turn shows a No response state with Retry", async ({ page, baseURL }) => {
+    await page.goto(sessionHref(NO_RESPONSE_SESSION, baseURL), { waitUntil: "domcontentloaded" })
+    await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
+
+    const row = page.locator('[data-slot="session-turn-no-response"]')
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await expect(row.getByText("No response was generated.")).toBeVisible()
+    await expect(row.getByRole("button", { name: "Retry" })).toBeVisible()
+  })
+
+  test("auth gate: 401 without creds, 200 with", async ({ baseURL }) => {
+    const anon = await fetch(`${baseURL}/config`)
+    expect(anon.status, "no creds must be rejected").toBe(401)
+
+    const token = Buffer.from(`${process.env.SITE_USER ?? "opencode"}:${process.env.SITE_PASSWORD ?? ""}`).toString(
+      "base64",
+    )
+    const authed = await fetch(`${baseURL}/config`, { headers: { authorization: `Basic ${token}` } })
+    expect(authed.status, "valid creds must be accepted").toBe(200)
+  })
+})
