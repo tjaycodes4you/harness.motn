@@ -4,6 +4,8 @@ import { expect, test, type Page } from "@playwright/test"
 const REASONING_SESSION = process.env.SITE_REASONING_SESSION ?? "ses_01bd8d72fffec8lCoY29BUsNM3"
 // Fixture session whose assistant turn produced no output (empty parts, 0 tokens).
 const NO_RESPONSE_SESSION = process.env.SITE_NO_RESPONSE_SESSION ?? "ses_f4571d8a5ffeHmWaiFEq4fiiqd"
+// A term expected to appear in at least one session title on any harness DB.
+const SEARCH_QUERY = process.env.SITE_SEARCH_QUERY ?? "opencode"
 
 // Matches @opencode-ai/core/util/encode base64Encode (url-safe, unpadded).
 function base64Encode(value: string) {
@@ -52,6 +54,21 @@ test.describe("site smoke", () => {
     await expect(page.locator("#root")).toBeVisible()
     await page.waitForTimeout(4000)
     expect(appErrors(errors)).toEqual([])
+  })
+
+  test("home lists sessions and searches across all projects", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" })
+
+    const rows = page.locator('[data-component="home-session-row"]')
+    await expect(rows.first()).toBeVisible({ timeout: 30_000 })
+    expect(await rows.count(), "home should list recent sessions without adding a project").toBeGreaterThan(0)
+
+    const search = page.locator('input[placeholder*="Search sessions"]')
+    await search.click()
+    await search.fill(SEARCH_QUERY)
+    const results = page.locator('[data-component="home-session-search-row"]')
+    await expect(results.first()).toBeVisible({ timeout: 30_000 })
+    expect(await results.count(), "server-side search should match sessions from every project").toBeGreaterThan(0)
   })
 
   test("known reasoning session renders a Thinking trace", async ({ page, baseURL }) => {

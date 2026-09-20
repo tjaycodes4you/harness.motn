@@ -92,6 +92,7 @@ export function createHomeSessionsController(home: HomeController) {
     buildHomeSessionRecords({
       sessions: indexedSessions,
       projectDirectories,
+      scoped: () => !!home.project.selected(),
       projects: home.project.list,
       projectByID,
     }),
@@ -250,11 +251,17 @@ function directories(project: LocalProject) {
 function buildHomeSessionRecords(input: {
   sessions: () => Session[]
   projectDirectories: () => string[]
+  scoped: () => boolean
   projects: () => LocalProject[]
   projectByID: () => Map<string, LocalProject>
 }) {
   const directories = new Set(input.projectDirectories().map(pathKey))
-  const sessions = input.sessions().filter((session) => directories.has(pathKey(session.directory)))
+  // With a project selected the home is scoped to it; otherwise show recent
+  // sessions from every project the server knows so the homepage is useful
+  // without opening each project first.
+  const sessions = input.scoped()
+    ? input.sessions().filter((session) => directories.has(pathKey(session.directory)))
+    : input.sessions()
   return [...new Map(sessions.map((session) => [session.id, session] as const)).values()]
     .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
     .flatMap((session) => {
@@ -265,8 +272,9 @@ function buildHomeSessionRecords(input: {
           .find(
             (item) =>
               pathKey(item.worktree) === directory || item.sandboxes?.some((sandbox) => pathKey(sandbox) === directory),
-          ) ?? projectForSession(session, input.projects(), input.projectByID())
-      if (!project) return []
+          ) ??
+        projectForSession(session, input.projects(), input.projectByID()) ??
+        ({ worktree: session.directory, expanded: false } satisfies LocalProject)
       return { session, project, projectName: displayName(project) }
     })
 }

@@ -56,4 +56,22 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   listening and its log ended in `^C` (interrupted — likely a stray Ctrl+C/console
   close during the promote churn). Restarted via `harness-autostart.cmd`; added
   the `ping`-based waits (F1 scripts) to avoid `timeout` failing under redirected
-  input. Watch for recurrence.
+  input. Watch for recurrence. (Recurred once more during this session; restarted
+  via `harness-serve.cmd`.)
+- **F7 — home searches every session, not just opened projects.** The home
+  session list was scoped to directories of projects the browser had opened
+  (`buildHomeSessionRecords` filtered on `projectDirectories`), so a fresh browser
+  showed "Nothing here yet" and the search box returned "No sessions found" until
+  each project was added by hand. Two changes:
+  1. `home-sessions-controller.tsx` now shows recent sessions from **all**
+     directories when no project is selected (still scoped when one is), with a
+     `{ worktree, expanded:false }` fallback project so unknown directories render
+     a folder-name label.
+  2. `home-session-search-controller.ts` now also queries the server globally via
+     `ctx.sdk.client.v2.session.list({ search, limit:50, order:"desc" })`
+     (`GET /api/session?search=`), debounced 120ms + abortable, merged after the
+     local index. This is the same endpoint the hidden command palette already
+     used (`createServerSessionEntries`).
+  Verified live: 64 rows on a fresh home, `TM ACO` → 1, `walmart` → 6, 0 console
+  errors; site suite extended with a home-search case, 5/5 on test + live.
+
