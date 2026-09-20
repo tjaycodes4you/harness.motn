@@ -30,6 +30,20 @@ function appErrors(errors: string[]) {
   return errors.filter((error) => !BENIGN.some((pattern) => pattern.test(error)))
 }
 
+// The timeline virtualizes and auto-scrolls to the latest message; older rows
+// (where empty turns live) are unmounted until scrolled into view. Wheel up like
+// a real user (programmatic scrollTop is overridden by auto-scroll).
+async function revealNoResponse(page: Page) {
+  const row = page.locator('[data-slot="session-turn-no-response"]')
+  await page.waitForTimeout(4000)
+  for (let i = 0; i < 80; i++) {
+    if ((await row.count()) > 0) return
+    await page.mouse.move(640, 400)
+    await page.mouse.wheel(0, -1500)
+    await page.waitForTimeout(120)
+  }
+}
+
 test.describe("site smoke", () => {
   test("home renders with motn title and no console errors", async ({ page }) => {
     const errors = trackErrors(page)
@@ -60,6 +74,7 @@ test.describe("site smoke", () => {
   test("empty assistant turn shows a No response state with Retry", async ({ page, baseURL }) => {
     await page.goto(sessionHref(NO_RESPONSE_SESSION, baseURL), { waitUntil: "domcontentloaded" })
     await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
+    await revealNoResponse(page)
 
     const row = page.locator('[data-slot="session-turn-no-response"]').first()
     await expect(row).toBeVisible({ timeout: 30_000 })

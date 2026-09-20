@@ -41,3 +41,19 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
     `["latest","beta","prod"].includes(InstallationChannel) ? InstallationVersion : undefined`
     — so preview/dev builds install the published `@opencode-ai/plugin` (now
     `1.18.31`). Mirrors the `database.path()` channel rule.
+- **F5 — on-demand sync from plain opencode.** The plain (npm) opencode keeps
+  writing `~/.local/share/opencode/opencode.db`; the harness serves
+  `~/.local/share/harness.motn/motn.db`. One-way **additive** merge
+  (`C:\Users\TJ\bin\harness-sync.cmd` → `harness-sync.ts`, `bun:sqlite`):
+  `PRAGMA foreign_keys=OFF` + `busy_timeout=60000`, `ATTACH` the source, and
+  `INSERT OR IGNORE INTO main.<t> SELECT * FROM src.<t>` for every table except
+  `migration`. Idempotent; safe while the harness serves the destination (WAL).
+  Schemas are identical (38 migrations, same tables) and project ids match.
+  Verified: pulled **3 sessions** (+591 messages, +2549 parts, +10 693 events);
+  `TM ACO` renders on live. **Caveat:** additive only — source renames/edits/
+  deletes do not propagate, and re-running only adds rows that don't exist yet.
+- **F6 — harness `:4096` found down.** During this work the live server was not
+  listening and its log ended in `^C` (interrupted — likely a stray Ctrl+C/console
+  close during the promote churn). Restarted via `harness-autostart.cmd`; added
+  the `ping`-based waits (F1 scripts) to avoid `timeout` failing under redirected
+  input. Watch for recurrence.
