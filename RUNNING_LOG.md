@@ -163,6 +163,24 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   sync endpoint then reported `reconciled: 224`; a small imported session answered
   in 5s. Note: the original prompt was lost, so a re-send is required.
 
+## 2026-09-20 — F15: post-F14 verification — synced ACO resumed, reconcile clean
+
+- Live `:4096` + test `:4097` both `{"healthy":true,"version":"0.0.0-dev-202609210131"}`;
+  both public hosts (harness/test-harness.motionlabs.ng) answer and 401 without
+  creds (auth gate OK); watchdog running (pid 8536). Running live binary built
+  21:31:59, i.e. contains the F14 fix (commit `41aa681abc`, 21:36:14).
+- `motn.db` reconcile state: **0** aggregates with `event_sequence.seq < MAX(event.seq)`
+  (`TM ACO`: counter == max == 11741, growing live under this session's own writes).
+  The F14 bug case is resumable: `ses_f43912656ffeRjHZ2d8jmiwsVg` messages 730 -> 753
+  after the fix, prompt + turns persisting.
+- Source (plain `opencode.db`) high-water rowids are behind the harness on every
+  table (`session` 198 vs 224, `event` 609 686 vs 616 731) — no pending rows, a
+  full sync right now is a no-op.
+- Site suite (Playwright) vs live: **6/6** — home + console-clean, global session
+  search, new-project/settings sync affordances, Thinking trace, No-response+Retry,
+  auth gate.
+
+
 
 
 
