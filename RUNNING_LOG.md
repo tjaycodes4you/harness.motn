@@ -338,6 +338,25 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Verified: 7/7 `@smoke` vs test harness (`0.0.0-dev-202609211818`); live promote
   and live smoke run through the idle-gated promote watcher.
 
+## 2026-09-21 – F23: promote #2 — zombie port, and the watchdog was blind
+
+- **Outage ~14:21 → 15:13.** The armed promote killed the `:4098` listener; the
+  port stayed busy past the 60s budget, the script logged `continuing anyway`
+  and launched anyway → a bound-but-unserving zombie. Its HTTP health check
+  failed (so it declared `BLOCKED`) while the watchdog's **TCP-only** probe
+  reported `:4098=up` for 18 minutes. Watchdog restarts then crash-looped on the
+  bound port until live was moved to `:4099` by hand.
+- **Root cause of the recurring "orphaned socket"** (`:4096`→`:4098`→`:4099`):
+  a child process can inherit the listening socket, so `taskkill /F` without `/T`
+  leaves the port bound. Promote/watchdog now kill the process **tree**.
+- **Fixes:** 300s port budget + never launch while busy (`RESULT: BLOCKED port
+  busy`, watchdog owns recovery); fallback clears the port first; watchdog
+  health-checks `/global/health` and kills a zombie holder's tree; heartbeats
+  report `up|down|zombie`; ports reconciled to `:4099` everywhere (scripts,
+  autostart, idle-promote watcher, cloudflared, KB verify).
+- Verified after recovery: live `RESULT: PASS` 7/7 on `0.0.0-dev-202609211818`;
+  KB verify 5/5; watchdog heartbeating with health detail.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came

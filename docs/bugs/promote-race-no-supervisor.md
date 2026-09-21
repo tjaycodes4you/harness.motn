@@ -60,6 +60,41 @@ short blip, never an outage.
 - `harness-promote-when-idle.py` only runs the suite when the promote reported
   `RESULT: PROMOTED`, so a rollback is not reported as a test failure.
 
+## Second occurrence (2026-09-21 14:20) — zombie port + blind watchdog
+
+Same class, different mechanics. An armed idle-gated promote produced a *bound
+but unserving* port:
+
+| Time | Event |
+|------|-------|
+| 14:20:43 | promote starts; the `:4098` listener is killed |
+| 14:21:44 | port still busy after the 60s budget — the script logged `continuing anyway` and **launched into it** |
+| 14:22:51 | HTTP health never went 200 (`new build did not come up`), fallback also failed |
+| 14:23:47 | `RESULT: BLOCKED`; site effectively down |
+| 14:21–14:40 | watchdog heartbeats report `:4098=up` — a TCP probe succeeds on the zombie socket while every HTTP request fails |
+| 14:41–15:13 | watchdog restart loop, all `ServeError` (port bound); recovery only happened by moving live to `:4099` |
+
+Root cause of the stuck port: **on Windows a child process can inherit the
+listening socket**, so killing only the server leaves the port bound until those
+children exit. This is the same mechanism behind the `:4096` → `:4098` → `:4099`
+migrations. Prime suspects are long-lived server children (LSP/MCP servers, PTY
+shells). `taskkill /F` with no `/T` cannot reach them.
+
+## Fixes after occurrence 2
+
+- **Kill the tree, not the process.** Promote and watchdog now use
+  `taskkill /F /T /PID`, so inherited socket handles die with the server.
+- **Never launch into a busy port.** Port budget raised 60s → 300s; if it is
+  still busy the promote stops, reports `RESULT: BLOCKED port <n> busy`, and
+  leaves recovery to the watchdog. The fallback path clears the port first.
+- **The watchdog checks HTTP health, not just TCP.** A bound-but-unhealthy port
+  (`zombie`) gets its owner killed (`/T`) and restarted; heartbeats now read
+  `:4099=up|down|zombie`.
+- **Port reconciled to `:4099`** across `harness-serve.cmd`,
+  `harness-serve-old.cmd`, `harness-watchdog.ps1`, `harness-promote.ps1`,
+  `harness-autostart.cmd`, `harness-promote-when-idle.py` (waits for idle on
+  4099), the cloudflared ingress, and the KB verify test.
+
 ## Residual risk
 
 Nothing supervises the watchdog itself — if it dies again, the state is now
