@@ -68,7 +68,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const id = createMemo(() => params.id || undefined)
     const list = createMemo(() => sync().data.agent.filter((item) => item.mode !== "subagent" && !item.hidden))
-    const agentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
+    // Harness fork: always expose the agent selector when there is a real choice
+    // (build/plan). Hiding it hard-codes current() to "build", which silently
+    // makes the agent.cycle keybind (shift+tab) a no-op.
+    const agentsVisible = createMemo(() => list().length > 1 || settings.visibility.customAgents() || hasCustomAgent(list()))
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
     const [saved, setSaved, , savedReady] = persisted(

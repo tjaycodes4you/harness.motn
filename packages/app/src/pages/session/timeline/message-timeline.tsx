@@ -34,6 +34,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
+import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencode-ai/ui/v2/dialog-v2"
@@ -65,6 +66,7 @@ import { useSessionKey } from "@/pages/session/session-layout"
 import { useServerSDK } from "@/context/server-sdk"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
+import { useCommand } from "@/context/command"
 import { useTabs } from "@/context/tabs"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
@@ -132,6 +134,7 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
   const language = useLanguage()
 
   return (
+
     <div data-slot="session-turn-thinking">
       <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
       <Show when={!props.showReasoningSummaries}>
@@ -265,9 +268,40 @@ export function MessageTimeline(props: {
   const sdk = useSDK()
   const sync = useSync()
   const settings = useSettings()
+  const command = useCommand()
   const tabs = useTabs()
   const dialog = useDialog()
   const language = useLanguage()
+  const usd = createMemo(
+    () =>
+      new Intl.NumberFormat(language.intl(), {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 4,
+      }),
+  )
+  const timefmt = createMemo(() => new Intl.DateTimeFormat(language.intl(), { timeStyle: "medium" }))
+  const durationLabel = (ms: number) => {
+    const total = Math.round(ms / 1000)
+    if (total < 60) return language.t("ui.message.duration.seconds", { count: String(total) })
+    return language.t("ui.message.duration.minutesSeconds", {
+      minutes: String(Math.floor(total / 60)),
+      seconds: String(total % 60),
+    })
+  }
+  const turnWindow = (userMessageID: string) => {
+    const user = messageByID().get(userMessageID)
+    if (!user) return ""
+    const completed = (assistantMessagesByParent().get(userMessageID) ?? emptyAssistantMessages).reduce<
+      number | undefined
+    >((max, item) => {
+      const value = item.time.completed
+      if (typeof value !== "number") return max
+      return max === undefined ? value : Math.max(max, value)
+    }, undefined)
+    if (typeof completed !== "number") return ""
+    return `${timefmt().format(user.time.created)} \u2192 ${timefmt().format(completed)}`
+  }
   const { params, sessionKey } = useSessionKey()
   const ownerSessionKey = sessionKey()
   const cached = timelineCache.get(ownerSessionKey)
@@ -1096,8 +1130,48 @@ export function MessageTimeline(props: {
 
   const renderTimelineRow = (row: Accessor<TimelineRow.TimelineRow>, onSizeChange?: () => void) => {
     switch (row()._tag) {
-      case "TurnGap":
-        return <div data-timeline-row="TurnGap" aria-hidden="true" class="h-6" />
+      case "TurnGap": {
+        const turnGapRow = row as Accessor<TimelineRowByTag<"TurnGap">>
+        const meta = createMemo(() => {
+          const items: { key: string; text: string; tooltip?: string }[] = []
+          const messages = assistantMessagesByParent().get(turnGapRow().userMessageID) ?? emptyAssistantMessages
+          const total = messages.reduce((sum, item) => sum + (item.cost ?? 0), 0)
+          if (total > 0) items.push({ key: "cost", text: usd().format(total) })
+          const ms = turnDurationMs(turnGapRow().userMessageID)
+          if (typeof ms === "number") {
+            items.push({
+              key: "duration",
+              text: durationLabel(ms),
+              tooltip: turnWindow(turnGapRow().userMessageID),
+            })
+          }
+          return items.filter((item) => !!item.text)
+        })
+        return (
+          <div data-timeline-row="TurnGap" class="flex min-h-6 items-center px-4 md:px-5">
+            <Show when={meta().length > 0}>
+              <div data-slot="session-turn-meta" class="flex items-center gap-1 text-12-regular text-text-weak">
+                <For each={meta()}>
+                  {(item, index) => (
+                    <>
+                      <Show when={index() > 0}>
+                        <span>{"\u00B7"}</span>
+                      </Show>
+                      <Show when={item.tooltip} fallback={<span>{item.text}</span>}>
+                        {(tip) => (
+                          <TooltipV2 value={tip()} placement="top">
+                            <span>{item.text}</span>
+                          </TooltipV2>
+                        )}
+                      </Show>
+                    </>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+        )
+      }
       case "CommentStrip": {
         const commentStripRow = row as Accessor<TimelineRowByTag<"CommentStrip">>
         const comments = createMemo(() =>
@@ -1603,6 +1677,10 @@ export function MessageTimeline(props: {
                                   <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
                                 </DropdownMenu.Item>
                                 <DropdownMenu.Separator />
+                                <DropdownMenu.Item onSelect={() => command.trigger("settings.open")}>
+                                  <DropdownMenu.ItemLabel>{language.t("sidebar.settings")}</DropdownMenu.ItemLabel>
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Separator />
                                 <DropdownMenu.Item
                                   onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
                                 >
@@ -1672,6 +1750,10 @@ export function MessageTimeline(props: {
                               </Show>
                               <MenuV2.Item onSelect={() => void archiveSession(id)}>
                                 {language.t("common.archive")}
+                              </MenuV2.Item>
+                              <MenuV2.Separator />
+                              <MenuV2.Item onSelect={() => command.trigger("settings.open")}>
+                                {language.t("sidebar.settings")}
                               </MenuV2.Item>
                               <MenuV2.Separator />
                               <MenuV2.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}>

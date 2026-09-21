@@ -9,6 +9,7 @@ import {
 } from "@opencode-ai/llm"
 import { SessionMessage } from "../message"
 import type { FileAttachment } from "../prompt"
+import { DateTime } from "effect"
 
 const media = (file: FileAttachment): ContentPart => ({
   type: "media",
@@ -112,6 +113,11 @@ const assistant = (message: SessionMessage.Assistant, model: Model) => {
   ]
 }
 
+function turnStamp(time: DateTime.Utc) {
+  const date = new Date(DateTime.toEpochMillis(time))
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+}
+
 function toLLMMessage(message: SessionMessage.Message, model: Model): Message[] {
   switch (message.type) {
     case "agent-switched":
@@ -122,7 +128,10 @@ function toLLMMessage(message: SessionMessage.Message, model: Model): Message[] 
         Message.make({
           id: message.id,
           role: "user",
-          content: [{ type: "text", text: message.text }, ...(message.files ?? []).map(media)],
+          content: [
+            { type: "text", text: `${turnStamp(message.time.created)}\n${message.text}` },
+            ...(message.files ?? []).map(media),
+          ],
           metadata: {
             ...message.metadata,
             ...(message.agents?.length ? { agents: message.agents } : {}),

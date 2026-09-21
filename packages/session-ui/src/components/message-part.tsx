@@ -1661,10 +1661,29 @@ PART_MAPPING["compaction"] = function CompactionPartDisplay() {
   return <MessageDivider label={i18n.t("ui.messagePart.compaction")} />
 }
 
+type MetaItem = { key: string; text: string; tooltip?: string }
+
+function durationLabel(i18n: ReturnType<typeof useI18n>, ms: number) {
+  const total = Math.round(ms / 1000)
+  if (total < 60) return i18n.t("ui.message.duration.seconds", { count: String(total) })
+  return i18n.t("ui.message.duration.minutesSeconds", {
+    minutes: String(Math.floor(total / 60)),
+    seconds: String(total % 60),
+  })
+}
+
 PART_MAPPING["text"] = function TextPartDisplay(props) {
   const data = useData()
   const i18n = useI18n()
   const numfmt = createMemo(() => new Intl.NumberFormat(i18n.locale()))
+  const usd = createMemo(
+    () =>
+      new Intl.NumberFormat(i18n.locale(), {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 4,
+      }),
+  )
   const part = () => props.part as TextPart
   const interrupted = createMemo(
     () =>
@@ -1699,16 +1718,34 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     })
   })
 
-  const meta = createMemo(() => {
+  const cost = createMemo(() => {
     if (props.message.role !== "assistant") return ""
+    const value = (props.message as AssistantMessage).cost
+    if (!(value > 0)) return ""
+    return usd().format(value)
+  })
+
+  const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "medium" }))
+  const durationWindow = createMemo(() => {
+    if (props.message.role !== "assistant") return ""
+    const message = props.message as AssistantMessage
+    const start = message.time.created
+    if (typeof start !== "number") return ""
+    const end = message.time.completed
+    if (typeof end !== "number") return ""
+    return `${timefmt().format(start)} \u2192 ${timefmt().format(end)}`
+  })
+
+  const meta = createMemo(() => {
+    if (props.message.role !== "assistant") return [] as MetaItem[]
     const agent = (props.message as AssistantMessage).agent
-    const items = [
-      agent ? agent[0]?.toUpperCase() + agent.slice(1) : "",
-      model(),
-      duration(),
-      interrupted() ? i18n.t("ui.message.interrupted") : "",
-    ]
-    return items.filter((x) => !!x).join(" \u00B7 ")
+    return [
+      { key: "agent", text: agent ? agent[0]?.toUpperCase() + agent.slice(1) : "" },
+      { key: "model", text: model() },
+      { key: "cost", text: cost() },
+      { key: "duration", text: duration(), tooltip: durationWindow() },
+      { key: "interrupted", text: interrupted() ? i18n.t("ui.message.interrupted") : "" },
+    ].filter((item): item is MetaItem => !!item.text)
   })
 
   const streaming = createMemo(
@@ -1756,9 +1793,27 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
               onClick={handleCopy}
               aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
             />
-            <Show when={meta()}>
-              <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
-                {meta()}
+            <Show when={meta().length > 0}>
+              <span
+                data-slot="text-part-meta"
+                class="text-12-regular text-text-weak cursor-default inline-flex items-center gap-1"
+              >
+                <For each={meta()}>
+                  {(item, index) => (
+                    <>
+                      <Show when={index() > 0}>
+                        <span>{"\u00B7"}</span>
+                      </Show>
+                      <Show when={item.tooltip} fallback={<span>{item.text}</span>}>
+                        {(tip) => (
+                          <Tooltip value={tip()} placement="top" gutter={4}>
+                            <span>{item.text}</span>
+                          </Tooltip>
+                        )}
+                      </Show>
+                    </>
+                  )}
+                </For>
               </span>
             </Show>
           </div>
@@ -1777,6 +1832,29 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
   const [open, setOpen] = createSignal(false)
+  const usd = createMemo(
+    () =>
+      new Intl.NumberFormat(i18n.locale(), {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 4,
+      }),
+  )
+  const traceCost = createMemo(() => {
+    if (props.message.role !== "assistant") return ""
+    const value = (props.message as AssistantMessage).cost
+    if (!(value > 0)) return ""
+    return usd().format(value)
+  })
+  const traceDuration = createMemo(() => {
+    const start = part().time?.start
+    const end = part().time?.end
+    if (typeof start !== "number" || typeof end !== "number") return ""
+    const ms = end - start
+    if (!(ms >= 0)) return ""
+    return durationLabel(i18n, ms)
+  })
+  const traceMeta = createMemo(() => [traceCost(), traceDuration()].filter((item) => !!item).join(" \u00B7 "))
 
   return (
     <Show when={text()}>
@@ -1785,6 +1863,11 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
           <Collapsible.Trigger>
             <div data-slot="reasoning-trigger">
               <span data-slot="reasoning-trigger-title">{i18n.t("ui.sessionTurn.status.thinking")}</span>
+              <Show when={traceMeta()}>
+                <span data-slot="reasoning-trigger-meta" class="text-12-regular text-text-weak">
+                  {traceMeta()}
+                </span>
+              </Show>
               <Collapsible.Arrow />
             </div>
           </Collapsible.Trigger>

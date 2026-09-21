@@ -496,8 +496,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     viewCommand({
       id: "terminal.toggle",
       title: language.t("command.terminal.toggle"),
-      keybind: "ctrl+`",
-      slash: "terminal",
+      keybind: "mod+/",
       onSelect: () => {
         if (view().terminal.opened()) {
           terminal.cancelFocus()
@@ -508,14 +507,9 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         view().terminal.open()
       },
     }),
-    viewCommand({
-      id: "review.toggle",
-      title: language.t("command.review.toggle"),
-      keybind: "mod+shift+r",
-      onSelect: () => view().reviewPanel.toggle(),
-    }),
     ...(shown()
       ? [
+
           viewCommand({
             id: "fileTree.toggle",
             title: language.t("command.fileTree.toggle"),

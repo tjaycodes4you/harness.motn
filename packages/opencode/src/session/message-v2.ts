@@ -128,6 +128,11 @@ function providerMeta(metadata: Record<string, any> | undefined) {
   return Object.keys(rest).length > 0 ? rest : undefined
 }
 
+function turnStamp(time: number) {
+  const date = new Date(time)
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+}
+
 export const toModelMessagesEffect = Effect.fnUntraced(function* (
   input: WithParts[],
   model: Provider.Model,
@@ -238,7 +243,11 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
           })
         }
       }
-      if (userMessage.parts.length > 0) result.push(userMessage)
+      if (userMessage.parts.length > 0) {
+        const first = userMessage.parts[0]
+        if (first?.type === "text") first.text = `${turnStamp(msg.info.time.created)}\n${first.text}`
+        result.push(userMessage)
+      }
     }
 
     if (msg.info.role === "assistant") {
