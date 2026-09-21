@@ -299,6 +299,50 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `httpapi-ui.test.ts` public-path list extended.
 - Verified: 7/7 `@smoke` vs test harness on `0.0.0-dev-202609211701`.
 
+## 2026-09-21 – F21: promote left live down ("you died") + supervision tripwires
+
+- **Outage 13:09:26 → 13:45:32 (~36 min).** The idle-gated promote killed the
+  `:4098` agent process and the relaunch raced the port release → `ServeError`
+  → exit 1; the old fallback pointed at a pre-rename binary that no longer
+  exists; and the **watchdog had been dead since 04:21:47** (9.4h), so nothing
+  restarted anything. The CF edge served 502s; the session was unusable.
+  `docs/bugs/promote-race-no-supervisor.md` (class: deploy/restart supervision).
+- **Hardening (partly from a parallel session at 13:47):** `harness-promote.ps1`
+  waits for the port to be free, snapshots `motn-live.prev.exe`, verifies HTTP
+  health, exits `PROMOTED`/`ROLLED BACK`/`BLOCKED` (0/5/4), and ensures a
+  watchdog on every path; `harness-watchdog.ps1` gained a 2-minute heartbeat and
+  a single-instance guard (`harness-watchdog\.ps1` — launcher wrappers don't
+  count); `harness-watchdog.cmd` added for detached starts.
+- **Tripwires:** live-tier livetest preflight is now BLOCKED
+  (`status=unsupervised`) unless a watchdog runs with a fresh heartbeat
+  (`supervision` block in `build.json`); `motnKnows/verify/test_harness_hosting.py`
+  asserts watchdog + heartbeat + live version == pinned binary.
+- Verified: KB verify 5/5; `live-test.cmd smoke` → `RESULT: PASS` on live
+  (`0.0.0-dev-202609211701`), evidence
+  `%TEMP%\harness.motn\livetest\20260921-135612-live-smoke`.
+- Known residual: nothing supervises the watchdog itself; want systemd hosting.
+
+## 2026-09-21 – F21: PWA live + M3 (the idle-gated promote left live down)
+
+- **PWA verified on live.** Live promoted to `0.0.0-dev-202609211701` at 13:09;
+  live `@smoke` 7/7 `PASS` including `PWA install surface` (manifest + real PNG
+  icons fetched anonymously). Live icon bytes: 192=1601, 512=7194, apple-touch=1541.
+- **M3: :4098 stayed down 13:09→13:47 ("server crashed").** Three faults:
+  (1) the promote killed the listener and relaunched 13 s later, so the new
+  process raced the port release and died on bind (`ServeError`, exit 1);
+  (2) the fallback `harness-serve-old.cmd` pointed at the pre-rename
+  `dist/opencode-windows-x64` build (gone) on :4096; (3) no watchdog was running
+  — the live one had died at 04:21 still polling :4096. Fixes: `harness-promote.ps1`
+  waits for :4098 to be genuinely free, snapshots the running binary to
+  `motn-live.prev.exe`, verifies `/global/health` (not just the socket) with 60 s
+  of retries, then falls back to the previous build; `harness-serve-old.cmd`
+  serves that snapshot on :4098; the idle watcher invokes the promote with
+  `cmd /c` (CreateProcess cannot execute a `.cmd`); watchdog restarted for
+  4098/4097. Dry-run verified healthy without touching the running server.
+- **Push sync run from the motn side** during the outage:
+  `motn-live.exe __motn-sync --push` → 20,231 rows (event 15,022, message 1,047,
+  part 4,156, todo 6), reconciled 233; plain opencode DB now holds today's sessions.
+
 
 
 
