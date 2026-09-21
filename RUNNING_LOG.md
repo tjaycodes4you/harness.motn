@@ -338,6 +338,25 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Verified: 7/7 `@smoke` vs test harness (`0.0.0-dev-202609211818`); live promote
   and live smoke run through the idle-gated promote watcher.
 
+## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
+
+- The armed promote (14:23) killed the `:4098` listener and **the port never came
+  back**: the `LISTENING` socket outlived its owner (netstat and
+  `Get-NetTCPConnection` still report dead PID 8908; no live child holds it —
+  kernel/EDR-held handle suspected, Riot Vanguard is on this box). `bind` →
+  WinError 10048 → the new build and `harness-serve-old.cmd` both died on
+  `ServeError` (15:11:35/15:12:04/15:12:33) and two watchdogs crash-looped. The
+  promote did the right thing: `RESULT: BLOCKED`, watchdog ensured.
+- **Live moved to `:4099`** in all seven scripts + `cloudflared/config.yml`
+  ingress; live tunnel restarted; one watchdog started; dedupe of the extra
+  watchdog. Public URL unchanged.
+- Verified: local + public `/global/health` → `0.0.0-dev-202609211818`;
+  `live-test.cmd smoke` → `RESULT: PASS` (7/7 incl. the supervision preflight);
+  KB `test_harness_hosting.py` 5/5 on `:4099`.
+- Same mechanism as the 4096 orphan (F19/M2) — **the structural fix is to stop
+  kill-and-rebind on a fixed port**: start the new build on a rotating port,
+  health-check it, repoint the tunnel ingress, then retire the old process.
+
 ## 2026-09-21 – F21: PWA live + M3 (the idle-gated promote left live down)
 
 - **PWA verified on live.** Live promoted to `0.0.0-dev-202609211701` at 13:09;

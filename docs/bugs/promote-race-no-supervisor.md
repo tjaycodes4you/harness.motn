@@ -43,12 +43,12 @@ short blip, never an outage.
 
 ## Fixes
 
-- `harness-promote.ps1` (replaces the .cmd logic): waits for `:4098` to be free
+- `harness-promote.ps1` (replaces the .cmd logic): waits for the target port to be free
   (up to 60s), snapshots the running binary to `motn-live.prev.exe` first,
   verifies **HTTP health** (not just a listening socket), and reports distinct
   outcomes: `RESULT: PROMOTED` (0), `RESULT: ROLLED BACK` (5, previous binary),
   `RESULT: BLOCKED` (4, neither came up). Every exit path runs `Ensure-Watchdog`.
-- `harness-watchdog.ps1`: heartbeat line every ~2 minutes (`heartbeat :4098=up
+- `harness-watchdog.ps1`: heartbeat line every ~2 minutes (`heartbeat :4099=up
   :4097=up cloudflared=N`), a single-instance guard (matches
   `harness-watchdog\.ps1`, so launcher `cmd`/`wscript` wrappers do not count as
   duplicates), and `harness-watchdog.cmd` for detached launches.
@@ -66,6 +66,20 @@ Nothing supervises the watchdog itself — if it dies again, the state is now
 visible (heartbeat + preflight + verify) but recovery is manual. The durable fix
 is the already-recorded `unverified` item: move hosting to a Linux box with
 systemd units for the two servers and two tunnels.
+
+## Recurrence (same day): the orphaned socket, not the race
+
+At ~14:23 the armed promote hit the *other* half of this class: it killed the
+`:4098` listener and the port never came back, because the `LISTENING` socket
+outlived its owner (netstat/`Get-NetTCPConnection` still name the dead PID; no
+live child holds it). `bind` → WinError 10048, so the new server and the
+fallback both died on `ServeError`, the promote correctly reported
+`RESULT: BLOCKED`, and two watchdogs crash-looped every ~29s until 15:14. Live
+moved to `:4099` (see `docs/bugs/in-process-sync-crashes-server.md` for the 4096
+occurrence of the same mechanism). The health-gate and watchdog bounds the
+damage, but the real fix is to stop kill-and-rebind on a fixed port: start the
+new build on a rotating port, health-check it, repoint the tunnel ingress, then
+retire the old process.
 
 ## Related
 
