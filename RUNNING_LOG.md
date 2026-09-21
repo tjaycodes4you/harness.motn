@@ -357,6 +357,24 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Verified after recovery: live `RESULT: PASS` 7/7 on `0.0.0-dev-202609211818`;
   KB verify 5/5; watchdog heartbeating with health detail.
 
+## 2026-09-21 – M5: name-based process kills killed the CALLING agent (twice)
+
+- **Mistake:** cleanup used `Get-Process -Name bun | Stop-Process` and
+  `Get-CimInstance ... -match "<script name>" | Stop-Process`. On Windows the
+  *calling* shell's own command line contains the pattern (and the agent runtime
+  is a `bun`/`opencode` process), so the filter matched the caller and the turn
+  died mid-command. Observed twice: once with a blanket `-Name bun` kill, once
+  with a `motn-front.js` command-line filter. In both cases the site itself was
+  fine — the agent killed itself, which reads as "the agent died again".
+- **Rule:** never kill by name or by a pattern that can match the caller. Kill
+  explicit PIDs, exclude `$PID` (and the parent), and verify the image path +
+  command line before `Stop-Process`/`taskkill`. Long-lived services are started
+  through `harness-detach.ps1` (WMI-detached), which also avoids the shell
+  inheriting their stdout and hanging the tool call.
+- Also started this day: `motn-front.js` (stable entrypoint) validated against
+  the live server — HTTP, SSE, WebSocket (PTY) pass-through and runtime upstream
+  swap all work; see `docs/features/deploy-contract.md` (WIP).
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
