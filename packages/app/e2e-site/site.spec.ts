@@ -96,4 +96,39 @@ test.describe("site smoke", () => {
     const authed = await fetch(`${baseURL}/config`, { headers: { authorization: `Basic ${token}` } })
     expect(authed.status, "valid creds must be accepted").toBe(200)
   })
+
+  // Regression: the manifest pointed at icons that were git symlink stubs on a
+  // Windows checkout, so the server returned text bytes as image/png and Chrome
+  // silently refused to install the app (it only offered a plain shortcut).
+  test("PWA install surface: manifest and real icon images @smoke", async ({ baseURL }) => {
+    const manifestResponse = await fetch(`${baseURL}/site.webmanifest`)
+    expect(manifestResponse.status, "manifest must be reachable without creds so install works").toBe(200)
+    const manifest = await manifestResponse.json()
+    expect(manifest.name ?? manifest.short_name).toBeTruthy()
+    expect(manifest.display).toBe("standalone")
+    expect(manifest.start_url).toBeTruthy()
+
+    const icons: { src: string; sizes: string }[] = manifest.icons ?? []
+    expect(new Set(icons.map((icon) => icon.sizes))).toEqual(new Set(["192x192", "512x512"]))
+
+    for (const icon of new Map(icons.map((icon) => [icon.src, icon])).values()) {
+      const response = await fetch(new URL(icon.src, baseURL).toString())
+      expect(response.status, `${icon.src} must load without creds`).toBe(200)
+      expect(response.headers.get("content-type"), `${icon.src} must be served as an image`).toContain("image/png")
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      expect(bytes.length, `${icon.src} must be a real file, not a symlink stub`).toBeGreaterThan(100)
+      expect([...bytes.slice(0, 8)], `${icon.src} must have a PNG signature`).toEqual([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ])
+      const header = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+      expect(`${header.getUint32(16)}x${header.getUint32(20)}`, `${icon.src} dimensions must match sizes`).toBe(
+        icon.sizes,
+      )
+    }
+
+    for (const path of ["/apple-touch-icon-v3.png", "/favicon-v3.svg"]) {
+      const response = await fetch(`${baseURL}${path}`)
+      expect(response.status, `${path} must load without creds`).toBe(200)
+    }
+  })
 })

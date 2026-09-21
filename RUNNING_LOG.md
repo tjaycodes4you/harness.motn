@@ -280,6 +280,25 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   7s with `/global/health` 200 after; `live-test smoke` vs live 6/6 `PASS` on
   `0.0.0-dev-202609210812`; e2e-site suite 8/8 on test.
 
+## 2026-09-21 – F20: PWA install on the tablet (broken icon stubs)
+
+- **Symptom (user):** "saving it on a tablet just opens the page in chrome" — a
+  shortcut, not an installed app. **Cause:** both manifest icons were git symlink
+  stubs served as text bytes with `Content-Type: image/png`; Chrome refuses to
+  install on invalid icons. `Page.getInstallabilityErrors` returned `[]` and all
+  HTTP checks passed — only a byte-level check catches this. Class doc:
+  `docs/bugs/windows-git-symlink-stubs.md` (2nd occurrence).
+- **Fix:** 12 assets in `packages/app/public/` (manifest icons, favicons,
+  apple-touch-icons, social-share) are real binaries committed as `100644`;
+  manifest gains `description`/`lang` + both `any` and `maskable` 192/512;
+  `apple-mobile-web-app-title` added; `PUBLIC_UI_PATHS` 3 → 13 so the install
+  surface is credential-free (API still 401s). No service worker by design — a
+  live session client must not serve offline-cached state.
+- **Regression:** `@smoke` `PWA install surface: manifest and real icon images`
+  (anonymous manifest fetch + PNG signature + IHDR dims per icon);
+  `httpapi-ui.test.ts` public-path list extended.
+- Verified: 7/7 `@smoke` vs test harness on `0.0.0-dev-202609211701`.
+
 
 
 

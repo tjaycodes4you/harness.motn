@@ -423,11 +423,26 @@ describe("HttpApi UI fallback", () => {
   // Regression for #25698 (Ope): the browser fetches the PWA manifest and
   // its icons via flows that don't carry app-managed credentials (the
   // `<link rel="manifest">` request is not under page-auth control), so the
-  // server returning 401 breaks PWA install. These specific public assets
-  // should bypass auth.
-  it.live("serves the PWA manifest without auth even when a server password is set", () =>
+  // server returning 401 breaks PWA install. Favicons and apple-touch-icons
+  // are fetched the same way by iOS and the install surface. These specific
+  // public assets should bypass auth.
+  it.live("serves the PWA manifest and icons without auth even when a server password is set", () =>
     Effect.gen(function* () {
-      for (const path of ["/site.webmanifest", "/web-app-manifest-192x192.png", "/web-app-manifest-512x512.png"]) {
+      for (const path of [
+        "/site.webmanifest",
+        "/web-app-manifest-192x192.png",
+        "/web-app-manifest-512x512.png",
+        "/apple-touch-icon.png",
+        "/apple-touch-icon-v3.png",
+        "/favicon.ico",
+        "/favicon-v3.ico",
+        "/favicon.svg",
+        "/favicon-v3.svg",
+        "/favicon-96x96.png",
+        "/favicon-96x96-v3.png",
+        "/social-share.png",
+        "/social-share-zen.png",
+      ]) {
         const response = yield* uiApp({
           password: "secret",
           username: "opencode",
