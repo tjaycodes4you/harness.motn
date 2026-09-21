@@ -789,6 +789,7 @@ export const dict = {
   "settings.data.sync.title": "Sync sessions",
   "settings.data.sync.description": "Pull new sessions from the plain opencode install into motn",
   "settings.data.sync.button": "Sync now",
+  "settings.data.sync.running": "Syncing",
   "settings.data.sync.done": "{{count}} new rows added",
   "settings.data.sync.uptodate": "Already up to date",
   "settings.updates.action.checkNow": "Jetzt prüfen",

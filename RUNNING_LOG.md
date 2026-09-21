@@ -96,5 +96,18 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   regeneration; the app calls them with plain `fetch` via `utils/motn-api.ts`.
   Verified: fresh-target sync inserted 198 sessions / 35 523 messages /
   139 281 parts / 607 089 events in ~43s; test + live site suites 6/6.
+- **F9 — sync progress animation.** The Settings sync button is replaced while
+  running by an animated spinner + live elapsed seconds
+  (`role="status"`, "Syncing 12s"), then toasts the inserted-row count. A sync
+  runs 5-45s, so a static disabled button looked frozen.
+- **F10 — recurring live `:4096` death is the real "frontend stuck" cause.** The
+  server log ends in `^C` (console interrupt) each time; the pinned binary is
+  launched through a minimized `cmd` console, so a console close / process-tree
+  kill takes the server down, CF then returns 502, and an open session page keeps
+  showing its last rendered state (looks frozen, e.g. TM ACO stuck on "Thinking"
+  + todos). After restart the same session renders through to its Compaction
+  entry and shows no stop button. Needs fully detached hosting (Windows Scheduled
+  Task) so shell teardown cannot signal it.
+
 
 
