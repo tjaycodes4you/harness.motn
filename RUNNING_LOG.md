@@ -212,6 +212,24 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   exe lock (the fixed sleep silently kept the old build). Verified: pinned == dist
   `00:56:43`, test + live site suites 6/6.
 
+## 2026-09-21 — F17: `livetest`, the deployed-build tester (P0)
+
+- New runner: `C:\Users\TJ\bin\live-test.cmd` (+ `live-test.ps1`, creds in
+  `live-creds.json`). Modes `smoke|scenario|all`, tiers `hermetic|staging|live`,
+  exit codes `0 PASS / 1 FAIL / 2 FLAKE / 3 SKIP / 4 BLOCKED` (SKIP != pass).
+- `packages/app/e2e-site/` gained `support/{env,api,events,app,composer,evidence,preflight,reporter}.ts`;
+  the six deployed checks are retagged `@smoke` and unchanged in behaviour.
+- Every run writes an evidence bundle to `%TEMP%\harness.motn\livetest\<stamp>-<tier>-<mode>\`
+  (`build.json`, `report.json`, `report.md`, logs, SSE/API journals).
+- `build.json` is check #0: target `/global/health` version vs the pinned
+  `motn-live.exe --version`. A mismatch/unreachable/unhealthy target exits
+  `BLOCKED` (4) before any assertion — closes the "promote silently kept the old
+  build" class.
+- Verified: `live-test smoke` vs live → `RESULT: PASS`, 6/6, 28.9s, pinned sha
+  `e0d99c95…`; version-mismatch probe → exit 4; hermetic (down) → exit 4
+  `BLOCKED`. `bun run typecheck:site` (new) clean.
+
+
 
 
 

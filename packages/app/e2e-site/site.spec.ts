@@ -1,36 +1,13 @@
 import { expect, test, type Page } from "@playwright/test"
+import { appErrors, sessionHref, trackErrors } from "./support/app"
 
-// Fixture session known to contain reasoning parts; override with SITE_REASONING_SESSION.
-const REASONING_SESSION = process.env.SITE_REASONING_SESSION ?? "ses_01bd8d72fffec8lCoY29BUsNM3"
+// Fixture session known to contain reasoning parts; override with LIVE_SESSION_REASONING.
+const REASONING_SESSION = process.env.LIVE_SESSION_REASONING ?? process.env.SITE_REASONING_SESSION ?? "ses_01bd8d72fffec8lCoY29BUsNM3"
 // Fixture session whose assistant turn produced no output (empty parts, 0 tokens).
-const NO_RESPONSE_SESSION = process.env.SITE_NO_RESPONSE_SESSION ?? "ses_f4571d8a5ffeHmWaiFEq4fiiqd"
+const NO_RESPONSE_SESSION =
+  process.env.LIVE_SESSION_NO_RESPONSE ?? process.env.SITE_NO_RESPONSE_SESSION ?? "ses_f4571d8a5ffeHmWaiFEq4fiiqd"
 // A term expected to appear in at least one session title on any harness DB.
-const SEARCH_QUERY = process.env.SITE_SEARCH_QUERY ?? "opencode"
-
-// Matches @opencode-ai/core/util/encode base64Encode (url-safe, unpadded).
-function base64Encode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}
-
-function sessionHref(sessionID: string, baseURL: string | undefined) {
-  return `/server/${base64Encode((baseURL ?? "").replace(/\/$/, ""))}/session/${sessionID}`
-}
-
-// Console noise that is not an app defect.
-const BENIGN = [/MaxListenersExceededWarning/i, /favicon/i, /ERR_INTERNET_DISCONNECTED/i]
-
-function trackErrors(page: Page) {
-  const errors: string[] = []
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text())
-  })
-  page.on("pageerror", (error) => errors.push(String(error)))
-  return errors
-}
-
-function appErrors(errors: string[]) {
-  return errors.filter((error) => !BENIGN.some((pattern) => pattern.test(error)))
-}
+const SEARCH_QUERY = process.env.LIVE_SEARCH_QUERY ?? process.env.SITE_SEARCH_QUERY ?? "opencode"
 
 // The timeline virtualizes and auto-scrolls to the latest message; older rows
 // (where empty turns live) are unmounted until scrolled into view. Wheel up like
@@ -47,7 +24,7 @@ async function revealNoResponse(page: Page) {
 }
 
 test.describe("site smoke", () => {
-  test("home renders with motn title and no console errors", async ({ page }) => {
+  test("home renders with motn title and no console errors @smoke", async ({ page }) => {
     const errors = trackErrors(page)
     await page.goto("/", { waitUntil: "domcontentloaded" })
     await expect(page).toHaveTitle(/motn/i)
@@ -56,7 +33,7 @@ test.describe("site smoke", () => {
     expect(appErrors(errors)).toEqual([])
   })
 
-  test("home lists sessions and searches across all projects", async ({ page }) => {
+  test("home lists sessions and searches across all projects @smoke", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" })
 
     const rows = page.locator('[data-component="home-session-row"]')
@@ -71,7 +48,7 @@ test.describe("site smoke", () => {
     expect(await results.count(), "server-side search should match sessions from every project").toBeGreaterThan(0)
   })
 
-  test("home exposes new-project and settings exposes session sync", async ({ page }) => {
+  test("home exposes new-project and settings exposes session sync @smoke", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" })
     await expect(page.locator('[data-action="home-new-project"]').first()).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('[data-action="home-add-project"]').first()).toBeVisible({ timeout: 30_000 })
@@ -80,7 +57,7 @@ test.describe("site smoke", () => {
     await expect(page.locator('[data-action="settings-motn-sync"]').first()).toBeVisible({ timeout: 30_000 })
   })
 
-  test("known reasoning session renders a Thinking trace", async ({ page, baseURL }) => {
+  test("known reasoning session renders a Thinking trace @smoke", async ({ page, baseURL }) => {
     const errors = trackErrors(page)
     await page.goto(sessionHref(REASONING_SESSION, baseURL), { waitUntil: "domcontentloaded" })
     await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
@@ -97,7 +74,7 @@ test.describe("site smoke", () => {
     expect(appErrors(errors)).toEqual([])
   })
 
-  test("empty assistant turn shows a No response state with Retry", async ({ page, baseURL }) => {
+  test("empty assistant turn shows a No response state with Retry @smoke", async ({ page, baseURL }) => {
     await page.goto(sessionHref(NO_RESPONSE_SESSION, baseURL), { waitUntil: "domcontentloaded" })
     await expect(page.getByText("session cannot be found", { exact: false })).toHaveCount(0)
     await revealNoResponse(page)
@@ -108,7 +85,7 @@ test.describe("site smoke", () => {
     await expect(row.getByRole("button", { name: "Retry" })).toBeVisible()
   })
 
-  test("auth gate: 401 without creds, 200 with", async ({ baseURL }) => {
+  test("auth gate: 401 without creds, 200 with @smoke", async ({ baseURL }) => {
     const anon = await fetch(`${baseURL}/config`)
     expect(anon.status, "no creds must be rejected").toBe(401)
 
