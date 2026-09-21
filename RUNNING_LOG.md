@@ -229,6 +229,29 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `e0d99c95…`; version-mismatch probe → exit 4; hermetic (down) → exit 4
   `BLOCKED`. `bun run typecheck:site` (new) clean.
 
+## 2026-09-21 — F18: first `@scenario` runs; todo-dock pilot finding
+
+- `@scenario` coverage on staging (build `0.0.0-dev-202609210455`):
+  - `turn-lifecycle` (10.9s): UI submit → prompt admitted (server ground truth)
+    → assistant turn completes → rendered text asserted → cost cap asserted.
+  - `todo-dock` (15.3s, $0.00027): model called `todowrite` (2 todos), dock
+    rendered 173/612 sampled frames with states `pending, in_progress`, then
+    **no dock once idle** while `alpha` was still `in_progress`.
+- Finding 1 (product, pending decision): dock + local list are gated on
+  `live()` and cleared at idle — `docs/bugs/todo-dock-idle-hidden.md`.
+- Finding 2 (product, real bug): composer send is silently dropped for ~4s on a
+  deep-linked session until model/agent resolve; button is enabled meanwhile —
+  `docs/bugs/composer-submit-before-ready.md`.
+- Tester mistakes worth remembering (all were mine, not the app's):
+  - `locator.fill()` commits text into the composer but the app's editor does not
+    register it — type with `pressSequentially`.
+  - the send button enables reactively after typing; clicking immediately is a
+    no-op → wait for enabled.
+  - deep-linked sessions need `waitForComposerReady` (model chip has a label).
+  - Python `urllib` API calls are 403'd by the CF edge; Node/undici fetch and the
+    browser are not. Probes must go through Playwright's request context.
+
+
 
 
 

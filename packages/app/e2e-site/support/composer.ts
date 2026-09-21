@@ -7,11 +7,30 @@ export async function openSession(page: Page, sessionID: string, baseURL: string
   await expect(page.locator('[data-component="prompt-input"]').first()).toBeVisible({ timeout: 30_000 })
 }
 
+// The composer renders before the app resolves its model/agent selection
+// (prompt-input/submit.ts bails when either is undefined), so a submit before
+// the model chip carries a label is silently dropped.
+export async function waitForComposerReady(page: Page) {
+  const chip = page.locator('[data-action="prompt-model"]').first()
+  await expect(chip).toBeVisible({ timeout: 30_000 })
+  await expect(chip).toHaveText(/\S/, { timeout: 30_000 })
+}
+
 export async function submitPrompt(page: Page, text: string) {
+  await waitForComposerReady(page)
   const input = page.locator('[data-component="prompt-input"]').first()
   await input.click()
-  await input.fill(text)
-  await page.keyboard.press("Enter")
+  // fill() commits text without the app's editor noticing; typing does.
+  await input.pressSequentially(text, { delay: 10 })
+  const draft = text.slice(0, Math.min(16, text.length))
+  await expect(input).toContainText(draft, { timeout: 10_000 })
+  // The submit button enables reactively as the draft lands; clicking before
+  // that silently does nothing.
+  const submit = page.locator('[data-action="prompt-submit"]').first()
+  await expect(submit).toBeEnabled({ timeout: 10_000 })
+  await submit.click()
+  // The composer clears its draft only when the submit was accepted.
+  await expect(input).not.toContainText(draft, { timeout: 15_000 })
 }
 
 // Ground truth for "the prompt was admitted": the server must expose a user
