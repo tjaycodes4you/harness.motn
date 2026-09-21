@@ -122,6 +122,22 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   machine; process supervision, logon persistence and the CF tunnels should move
   to a small always-on Linux box (systemd units) instead of WMI-detached cmd
   windows. Tracked in `ideas_in_motn` RUNNING_LOG (Pending).
+- **F12 — the server also dies on its own, so WMI detach (F11) is not enough.**
+  After F11 the live process disappeared with NO shell involvement (no
+  `motn-live.exe`, log tail ends `^C`). So the cause is the process itself
+  crashing/exiting, not a console signal. The log shows a recurring
+  `MaxListenersExceededWarning: Possible EventTarget memory leak ... 11 listeners`
+  from `~effect/Effect/evaluate` before deaths — suspicious but not yet proven
+  fatal. Mitigations now in place:
+  1. `harness-serve.cmd` / `harness-test.cmd` append `server exited with code
+     %ERRORLEVEL%` so the next death records its exit code.
+  2. `harness-watchdog.ps1` (+ `.cmd`) polls 127.0.0.1:4096/4097 every 15s and
+     restarts any downed server (and cloudflared) via `harness-detach.ps1`;
+     started detached and from `Startup\motn-harness-autostart.vbs`. Live recovers
+     within ~15s instead of staying 502.
+  Still to do: capture the crash exit code/stack and fix it, then move to the
+  dedicated box (F11).
+
 
 
 
