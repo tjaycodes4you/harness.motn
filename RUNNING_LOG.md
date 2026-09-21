@@ -108,6 +108,21 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   + todos). After restart the same session renders through to its Compaction
   entry and shows no stop button. Needs fully detached hosting (Windows Scheduled
   Task) so shell teardown cannot signal it.
+- **F11 — servers now launched detached (WMI); dedicated box still wanted.**
+  `schtasks` is unavailable to this account (Access denied — no elevation), so
+  instead of a Scheduled Task the servers are spawned via
+  `C:\Users\TJ\bin\harness-detach.ps1` (`Win32_Process.Create`), which makes them
+  children of `WmiPrvSE.exe` rather than of the calling shell:
+  `motn-live.exe` pid 30896 parent `cmd` parent `WmiPrvSE.exe`. `harness-autostart.cmd`
+  now detaches every server + tunnel through it, the tunnels got their own
+  wrappers (`harness-tunnel-live.cmd`, `harness-tunnel-test.cmd`), and
+  `Startup\motn-harness-autostart.vbs` runs autostart hidden at logon. This should
+  end the `^C` deaths behind F10.
+  **Still wanted: a dedicated server box.** This harness is a personal Windows
+  machine; process supervision, logon persistence and the CF tunnels should move
+  to a small always-on Linux box (systemd units) instead of WMI-detached cmd
+  windows. Tracked in `ideas_in_motn` RUNNING_LOG (Pending).
+
 
 
 
