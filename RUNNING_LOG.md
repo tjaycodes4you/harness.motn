@@ -137,6 +137,15 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
      within ~15s instead of staying 502.
   Still to do: capture the crash exit code/stack and fix it, then move to the
   dedicated box (F11).
+- **F13 — launcher must be hidden, not just detached.** `Win32_Process.Create`
+  of `cmd /c <script>` still produced a *visible* console window; closing it
+  killed the server and the watchdog (ports went down together). `harness-detach.ps1`
+  now creates `wscript.exe //nologo harness-hidden.vbs <script>`, and the VBS runs
+  `cmd /c` with WScript window style 0, so the chain is
+  `WmiPrvSE -> wscript -> cmd -> motn-live.exe` with no window. Restart helper
+  `harness-restart.ps1` re-launches all three (live, test, watchdog) hidden.
+  Verified: live + test both 200, 64 home rows, no visible consoles.
+
 
 
 
