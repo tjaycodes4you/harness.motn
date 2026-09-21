@@ -145,6 +145,24 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `WmiPrvSE -> wscript -> cmd -> motn-live.exe` with no window. Restart helper
   `harness-restart.ps1` re-launches all three (live, test, watchdog) hidden.
   Verified: live + test both 200, 64 home rows, no visible consoles.
+- **F14 — synced sessions silently swallowed prompts (the "stuck Thinking").**
+  Root cause: `POST /session/:id/prompt_async` accepts (204) but the prompt's
+  event write fails —
+  `insert into "event" (id, aggregate_id, seq, type, data) ... seq=4220` — because
+  the per-aggregate `event_sequence` counter lagged the imported `event` rows
+  (TM ACO: counter `4219`, actual max seq `11082`). The seq reuses an existing row,
+  the unique constraint fires, the whole prompt transaction dies, and
+  `promptAsync`'s `Effect.catchCause` logs + publishes `session.error` and returns
+  NoContent — so the UI shows a turn that was never persisted. Native sessions were
+  unaffected (counter consistent); only DB-synced sessions broke. Reproduced:
+  `noReply: true` wrote a message for a native session but not for TM ACO.
+  Fix: reconcile `event_sequence` up to `MAX(event.seq)` per aggregate, in
+  `packages/opencode/src/motn/sync.ts` (`reconcileEventSequence`) and
+  `bin/harness-sync.ts`, so the next write cannot collide.
+  Evidence: manual reconcile `4219 -> 11082` made `noReply` persist (730 -> 731);
+  sync endpoint then reported `reconciled: 224`; a small imported session answered
+  in 5s. Note: the original prompt was lost, so a re-send is required.
+
 
 
 
