@@ -902,13 +902,12 @@ export default function Page() {
           id ? composer.blocked() : false,
         ] as const
       },
-      ([dir, id, status, blocked]) => {
+      ([dir, id]) => {
         if (todoFrame !== undefined) cancelAnimationFrame(todoFrame)
         if (todoTimer !== undefined) window.clearTimeout(todoTimer)
         todoFrame = undefined
         todoTimer = undefined
         if (!id) return
-        if (status === "idle" && !blocked) return
         const cached = untrack(() => sync().data.todo[id] !== undefined)
 
         todoFrame = requestAnimationFrame(() => {
@@ -922,7 +921,6 @@ export default function Page() {
           }, 0)
         })
       },
-      { defer: true },
     ),
   )
 

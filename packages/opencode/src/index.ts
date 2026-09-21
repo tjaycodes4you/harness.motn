@@ -32,6 +32,25 @@ import { Heap } from "./cli/heap"
 
 const args = hideBin(process.argv)
 
+// Hidden self-invoked worker: perform the harness <-> plain-opencode DB sync in a
+// SEPARATE process. The merge is heavy synchronous SQLite work (full-table scans,
+// lock waits on the peer DB) and running it inside an HTTP handler blocked the
+// server event loop long enough to kill the process (ServeError, exit 1).
+if (args[0] === "__motn-sync") {
+  try {
+    const { peerDatabase, syncSessions } = await import("./motn/sync")
+    const { Database } = await import("@opencode-ai/core/database/database")
+    const local = Database.path()
+    const push = args.includes("--push")
+    const result = syncSessions(push ? local : peerDatabase(local), push ? peerDatabase(local) : local)
+    process.stdout.write(JSON.stringify(result))
+    process.exit(0)
+  } catch (error) {
+    process.stderr.write(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
+}
+
 function show(out: string) {
   const text = out.trimStart()
   if (!text.startsWith("motn ")) {

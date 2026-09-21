@@ -8,29 +8,48 @@ import { showToast } from "@/utils/toast"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 
-type SyncResult = { inserted: number; counts?: { table: string; inserted: number }[] }
+type SyncResult = { inserted: number }
+type Direction = "pull" | "push"
+
+const ROUTES: Record<Direction, string> = {
+  pull: "/experimental/motn/sync",
+  push: "/experimental/motn/sync-push",
+}
+
+const COPY: Record<Direction, { title: string; description: string; button: string }> = {
+  pull: {
+    title: "settings.data.sync.title",
+    description: "settings.data.sync.description",
+    button: "settings.data.sync.button",
+  },
+  push: {
+    title: "settings.data.push.title",
+    description: "settings.data.push.description",
+    button: "settings.data.push.button",
+  },
+}
 
 export function SettingsDataV2() {
   const language = useLanguage()
   const serverSdk = useServerSDK()
-  const [syncing, setSyncing] = createSignal(false)
+  const [busy, setBusy] = createSignal<Direction | undefined>(undefined)
   const [elapsed, setElapsed] = createSignal(0)
   let timer: ReturnType<typeof setInterval> | undefined
 
   onCleanup(() => clearInterval(timer))
 
-  const sync = async () => {
-    if (syncing()) return
-    setSyncing(true)
+  const run = async (direction: Direction) => {
+    if (busy()) return
+    setBusy(direction)
     setElapsed(0)
     const started = Date.now()
     timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000)
     try {
-      const result = await motnPost<SyncResult>(serverSdk().server.http, "/experimental/motn/sync")
+      const result = await motnPost<SyncResult>(serverSdk().server.http, ROUTES[direction])
       showToast({
         variant: "success",
         icon: "circle-check",
-        title: language.t("settings.data.sync.title"),
+        title: language.t(COPY[direction].title),
         description:
           result.inserted > 0
             ? language.t("settings.data.sync.done", { count: result.inserted })
@@ -43,9 +62,34 @@ export function SettingsDataV2() {
       })
     } finally {
       clearInterval(timer)
-      setSyncing(false)
+      setBusy(undefined)
     }
   }
+
+  const control = (direction: Direction) => (
+    <Show
+      when={busy() === direction}
+      fallback={
+        <div data-action={`settings-motn-sync-${direction}`}>
+          <ButtonV2 size="normal" variant="neutral" disabled={!!busy()} onClick={() => void run(direction)}>
+            {language.t(COPY[direction].button)}
+          </ButtonV2>
+        </div>
+      }
+    >
+      <div
+        data-action={`settings-motn-sync-${direction}`}
+        class="flex items-center gap-2 text-v2-text-text-muted"
+        role="status"
+        aria-live="polite"
+      >
+        <Spinner class="size-4" />
+        <span class="text-[13px] [font-weight:440] tabular-nums">
+          {language.t("settings.data.sync.running")} {elapsed()}s
+        </span>
+      </div>
+    </Show>
+  )
 
   return (
     <div class="settings-v2-section">
@@ -56,28 +100,14 @@ export function SettingsDataV2() {
           title={language.t("settings.data.sync.title")}
           description={language.t("settings.data.sync.description")}
         >
-          <Show
-            when={syncing()}
-            fallback={
-              <div data-action="settings-motn-sync">
-                <ButtonV2 size="normal" variant="neutral" onClick={() => void sync()}>
-                  {language.t("settings.data.sync.button")}
-                </ButtonV2>
-              </div>
-            }
-          >
-            <div
-              data-action="settings-motn-sync"
-              class="flex items-center gap-2 text-v2-text-text-muted"
-              role="status"
-              aria-live="polite"
-            >
-              <Spinner class="size-4" />
-              <span class="text-[13px] [font-weight:440] tabular-nums">
-                {language.t("settings.data.sync.running")} {elapsed()}s
-              </span>
-            </div>
-          </Show>
+          {control("pull")}
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.data.push.title")}
+          description={language.t("settings.data.push.description")}
+        >
+          {control("push")}
         </SettingsRowV2>
       </SettingsListV2>
     </div>

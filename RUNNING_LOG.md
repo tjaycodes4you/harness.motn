@@ -251,6 +251,36 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   - Python `urllib` API calls are 403'd by the CF edge; Node/undici fetch and the
     browser are not. Probes must go through Playwright's request context.
 
+## 2026-09-21 — F19: todo dock persistence fix + reverse sync (push) + live on :4098
+
+- **Todo dock (product decision: keep while unfinished).** `todoState` no longer
+  takes `live()`; `"clear"` and its local-store wipe are gone; the fetch effect in
+  `pages/session.tsx` lost both the idle gate and `{ defer: true }` (the defer
+  meant it never ran on open). `docs/bugs/todo-dock-idle-hidden.md` (fix applied),
+  unit regression in `session-composer-state.test.ts`, scenario regression is now
+  `todo-dock.spec.ts` (live dock, idle persistence, reopen).
+- **Reverse sync: harness → plain opencode.** `POST /experimental/motn/sync-push`,
+  Settings row "Push to opencode" (`settings-motn-sync-push`); the old button is
+  `settings-motn-sync-pull`. First push copied 35 sessions / 1,774 messages /
+  7,640 parts / 27,446 events; plain DB now 233 sessions incl. harness-created ones.
+  `docs/features/reverse-sync-push.md`.
+- **M1: sync ran on the HTTP event loop and killed the server** (`ServeError`,
+  exit 1 at 04:06:50). It now runs in a child process (`__motn-sync` branch in the
+  entry, spawned via `process.execPath`). `docs/bugs/in-process-sync-crashes-server.md`.
+- **M2: 4096 became an orphaned listener** (dead PID still holding the socket;
+  `bind` → 10048, connections refused) and every watchdog restart crash-looped on
+  it. **Live moved to :4098**: `harness-serve.cmd`, `harness-promote.cmd`,
+  `harness-watchdog.ps1`, cloudflared `config.yml` ingress, live tunnel restarted.
+  Public URL unchanged. If 4096 frees itself, moving back is a one-line change.
+- **Tester additions:** `LIVE_RETRIES` (default 1) so a model-behaviour retry is
+  reported as `FLAKE`, not `FAIL`; `harness-deploy-test.cmd` deploys the built
+  `harness.motn` dist to the test harness (the test repo's source is a stale
+  snapshot — never build from it).
+- Verified: worker pull 131 rows / worker push 36,953 rows; endpoint push 200 in
+  7s with `/global/health` 200 after; `live-test smoke` vs live 6/6 `PASS` on
+  `0.0.0-dev-202609210812`; e2e-site suite 8/8 on test.
+
+
 
 
 

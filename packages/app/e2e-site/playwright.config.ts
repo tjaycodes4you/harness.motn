@@ -25,7 +25,9 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // Model-calling scenarios are probabilistic; one retry lets the reporter label
+  // a recovery as FLAKE instead of FAIL (see support/reporter.ts).
+  retries: process.env.LIVE_RETRIES ? Number(process.env.LIVE_RETRIES) : 1,
   reporter: [["list"], ["./support/reporter.ts"]],
   use: {
     baseURL,

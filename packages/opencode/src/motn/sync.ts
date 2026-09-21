@@ -17,10 +17,13 @@ export type SyncResult = {
   syncedAt: number
 }
 
-export function defaultSource(target: string) {
+// The plain opencode install sits next to the harness under the same data root
+// (<data>/harness.motn/<db> <-> <data>/opencode/opencode.db). Sync is
+// direction-agnostic, so this peer path is the source when pulling into the
+// harness and the target when pushing out of it.
+export function peerDatabase(local: string) {
   if (process.env.MOTN_SYNC_SOURCE) return process.env.MOTN_SYNC_SOURCE
-  // <data>/harness.motn/<db> -> <data>/opencode/opencode.db
-  return join(dirname(dirname(target)), "opencode", "opencode.db")
+  return join(dirname(dirname(local)), "opencode", "opencode.db")
 }
 
 export function syncSessions(source: string, target: string): SyncResult {

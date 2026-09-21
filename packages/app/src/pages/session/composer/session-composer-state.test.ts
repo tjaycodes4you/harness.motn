@@ -107,23 +107,15 @@ describe("sessionQuestionRequest", () => {
 
 describe("todoState", () => {
   test("hides when there are no todos", () => {
-    expect(todoState({ count: 0, done: false, live: true })).toBe("hide")
+    expect(todoState({ count: 0, done: false })).toBe("hide")
   })
 
-  test("opens while the session is still working", () => {
-    expect(todoState({ count: 2, done: false, live: true })).toBe("open")
+  test("stays open for unfinished todos after the turn ends", () => {
+    expect(todoState({ count: 2, done: false })).toBe("open")
   })
 
-  test("closes completed todos after a running turn", () => {
-    expect(todoState({ count: 2, done: true, live: true })).toBe("close")
-  })
-
-  test("clears stale todos when the turn ends", () => {
-    expect(todoState({ count: 2, done: false, live: false })).toBe("clear")
-  })
-
-  test("clears completed todos when the session is no longer live", () => {
-    expect(todoState({ count: 2, done: true, live: false })).toBe("clear")
+  test("closes once every todo is completed", () => {
+    expect(todoState({ count: 2, done: true })).toBe("close")
   })
 })
 

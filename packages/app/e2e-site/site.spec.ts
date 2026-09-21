@@ -54,7 +54,8 @@ test.describe("site smoke", () => {
     await expect(page.locator('[data-action="home-add-project"]').first()).toBeVisible({ timeout: 30_000 })
 
     await page.getByText("Settings", { exact: true }).first().click()
-    await expect(page.locator('[data-action="settings-motn-sync"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-action="settings-motn-sync-pull"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-action="settings-motn-sync-push"]').first()).toBeVisible({ timeout: 30_000 })
   })
 
   test("known reasoning session renders a Thinking trace @smoke", async ({ page, baseURL }) => {

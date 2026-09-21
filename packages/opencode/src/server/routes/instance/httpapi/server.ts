@@ -67,7 +67,7 @@ import { SessionV2 } from "@opencode-ai/core/session"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opencode-ai/core/session/execution/local"
 import { lazy } from "@/util/lazy"
-import { defaultSource as motnDefaultSource, syncSessions as motnSyncSessions } from "@/motn/sync"
+import { peerDatabase as motnPeerDatabase } from "@/motn/sync"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opencode-ai/server/cors"
 import { serveUIEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
@@ -209,23 +209,45 @@ const uiRoute = HttpRouter.use((router) =>
 const motnRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const fs = yield* FSUtil.Service
+    const runMerge = (direction: "pull" | "push") =>
+      Effect.gen(function* () {
+        const child = Bun.spawn([process.execPath, "__motn-sync", direction === "push" ? "--push" : "--pull"], {
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+        const [code, out, err] = yield* Effect.promise(() =>
+          Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]),
+        )
+        if (code !== 0) {
+          return HttpServerResponse.jsonUnsafe({ error: err.slice(0, 600) || `sync worker exited ${code}` }, { status: 500 })
+        }
+        const parsed = yield* Effect.try({
+          try: () => JSON.parse(out) as unknown,
+          catch: () => undefined,
+        }).pipe(Effect.orElseSucceed(() => undefined))
+        if (!parsed) return HttpServerResponse.jsonUnsafe({ error: `unexpected sync output: ${out.slice(0, 300)}` }, { status: 500 })
+        return HttpServerResponse.jsonUnsafe(parsed)
+      })
+
+    // Pull: plain opencode -> harness.
     yield* router.add("POST", "/experimental/motn/sync", () =>
       Effect.gen(function* () {
         const target = Database.path()
-        const source = motnDefaultSource(target)
+        const source = motnPeerDatabase(target)
         if (!(yield* fs.exists(source))) {
           return HttpServerResponse.jsonUnsafe({ error: `no source database at ${source}`, source, target }, { status: 404 })
         }
-        const result = yield* Effect.result(
-          Effect.try({
-            try: () => motnSyncSessions(source, target),
-            catch: (cause) => (cause instanceof Error ? cause.message : String(cause)),
-          }),
-        )
-        if (result._tag === "Failure") {
-          return HttpServerResponse.jsonUnsafe({ error: result.failure, source, target }, { status: 500 })
+        return yield* runMerge("pull")
+      }),
+    )
+    // Push: harness -> plain opencode (so the normal opencode also sees harness work).
+    yield* router.add("POST", "/experimental/motn/sync-push", () =>
+      Effect.gen(function* () {
+        const target = motnPeerDatabase(Database.path())
+        if (!(yield* fs.exists(target))) {
+          return HttpServerResponse.jsonUnsafe({ error: `no target database at ${target}` }, { status: 404 })
         }
-        return HttpServerResponse.jsonUnsafe(result.success)
+        return yield* runMerge("push")
       }),
     )
     yield* router.add("POST", "/experimental/motn/mkdir", (request) =>
