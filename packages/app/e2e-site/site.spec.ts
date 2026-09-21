@@ -105,7 +105,9 @@ test.describe("site smoke", () => {
     expect(manifestResponse.status, "manifest must be reachable without creds so install works").toBe(200)
     const manifest = await manifestResponse.json()
     expect(manifest.name ?? manifest.short_name).toBeTruthy()
-    expect(manifest.display).toBe("standalone")
+    // Immersive: the installed app fills the screen and swipes reveal the
+    // system bars. Falls back to standalone on platforms without fullscreen.
+    expect(manifest.display).toBe("fullscreen")
     expect(manifest.start_url).toBeTruthy()
 
     const icons: { src: string; sizes: string }[] = manifest.icons ?? []

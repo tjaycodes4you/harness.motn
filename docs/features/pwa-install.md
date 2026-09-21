@@ -29,6 +29,14 @@ it is a live client for a local server, offline caching would serve stale state.
   apple-touch-icons, social-share) are now **real binaries committed as regular
   files** (`mode 100644`). `site.webmanifest` gains `description`, `lang`, and
   both `any` and `maskable` 192/512 entries.
+- **Display mode is `fullscreen`** (product decision, 2026-09-21): the installed
+  app fills the whole screen with no status-bar strip; the clock and
+  notifications appear when the user swipes down from the top edge, and the
+  manifest falls back to `standalone` on platforms without immersive mode. The
+  app already pads its shell with `env(safe-area-inset-*)`
+  (`pages/layout-new.tsx`), so notches/cutouts stay clear. Display mode is fixed
+  at install time — an already-installed WebAPK picks it up on a later launch
+  (uninstall/reinstall forces it immediately).
 - `packages/app/index.html` — `apple-mobile-web-app-title` = `motn` (iOS uses it
   for the home-screen label).
 - `packages/opencode/src/server/shared/public-ui.ts` — the auth-bypass list grows

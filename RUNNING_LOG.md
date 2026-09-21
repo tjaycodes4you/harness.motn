@@ -322,6 +322,22 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `%TEMP%\harness.motn\livetest\20260921-135612-live-smoke`.
 - Known residual: nothing supervises the watchdog itself; want systemd hosting.
 
+## 2026-09-21 – F22: PWA display mode → fullscreen
+
+- Product decision (tablet user): the installed app should use the whole screen
+  with no status-bar strip. `site.webmanifest` `display`: `standalone` →
+  `fullscreen` (Android immersive; the clock/notifications appear on a top-edge
+  swipe; platforms without immersive fall back to `standalone`). The shell
+  already pads with `env(safe-area-inset-*)` (`pages/layout-new.tsx`), so
+  notches/cutouts stay clear.
+- Display mode is install-time: an installed WebAPK picks it up on a later
+  launch; uninstall/reinstall forces it immediately.
+- Guards updated to assert `fullscreen`: `@smoke` PWA check in
+  `packages/app/e2e-site/site.spec.ts` and
+  `motnKnows/verify/test_harness_hosting.py`.
+- Verified: 7/7 `@smoke` vs test harness (`0.0.0-dev-202609211818`); live promote
+  and live smoke run through the idle-gated promote watcher.
+
 ## 2026-09-21 – F21: PWA live + M3 (the idle-gated promote left live down)
 
 - **PWA verified on live.** Live promoted to `0.0.0-dev-202609211701` at 13:09;
