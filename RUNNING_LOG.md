@@ -180,6 +180,39 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   search, new-project/settings sync affordances, Thinking trace, No-response+Retry,
   auth gate.
 
+## 2026-09-21 — F16: session menu/meta overhaul (build `0.0.0-dev-202609210455`)
+
+- **Settings moved into the session ⋯ menu** (`message-timeline.tsx`, v2 `MenuV2`
+  and legacy `DropdownMenu`) via `command.trigger("settings.open")`. No new header
+  button; it opens the normal overlay dialog.
+- **Review toggle removed** from the session header (v2 + legacy + state fields)
+  and the `review.toggle` command deleted. It was bound to `mod+shift+r` =
+  **Ctrl+Shift+R**, which the command layer `preventDefault`s — i.e. it was
+  stealing hard refresh whenever a session was open. Hard refresh works again.
+- **Cost + timestamps.** Step meta is now `Build · DeepSeek · $0.0017 · 21s` with
+  the duration tooltipped to `HH:MM:SS → HH:MM:SS`; a per-turn footer renders in
+  the timeline `TurnGap` (`$0.0648 · 22s`); reasoning ("Thinking") triggers show
+  step cost + reasoning duration (`$0.0043 · 1s`). `message-part.tsx` meta became
+  a rendered item list with a `MetaItem` type + `durationLabel` helper.
+- **Shift+Tab cycles build/plan.** `agent.cycle` is now `shift+tab,mod+.` with its
+  `disabled: !local.agent.visible()` gate removed. Why it was inert:
+  `context/local.tsx` hard-coded `current()` to `"build"` while the selector was
+  hidden, so cycling never reached the prompt. The selector now shows whenever
+  more than one primary agent exists. Verified by capturing the outgoing
+  `prompt_async` body: `build -> plan -> build`.
+- **Per-turn timestamp for the model.** `HH:MM` (from `time.created`) is
+  prepended to each user turn in both request paths — core v2
+  `session/runner/to-llm-message.ts` and opencode v1 `session/message-v2.ts`
+  (`turnStamp`). ~2-4 tokens/turn, prompt-cached; the UI user stamp is unchanged.
+  Verified the model echoes it ("The first line of the message is 00:53").
+- Also folded in: another session's uncommitted `terminal.toggle` rebind (`mod+/`)
+  — its `terminal.focused()` call does not exist and was removed so typecheck
+  stays green.
+- `harness-promote.cmd` now retries the binary copy until Windows releases the
+  exe lock (the fixed sleep silently kept the old build). Verified: pinned == dist
+  `00:56:43`, test + live site suites 6/6.
+
+
 
 
 
