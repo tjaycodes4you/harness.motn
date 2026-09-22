@@ -429,6 +429,23 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   the front; `live-test.cmd smoke` → `RESULT: PASS` 7/7; `motn-deploy -Action
   status` green. Details: `docs/features/deploy-contract.md`.
 
+## 2026-09-22 – F25: reboot exposed two supervision gaps
+
+- Box rebooted 04:45:34. Autostart brought back the live front (`:4102`),
+  backend (`:4103`) and test harness (`:4097`), but:
+  - **the public host served CF `1033`** — the *live tunnel* was not running. The
+    autostart/watchdog tested "is any cloudflared up?", and the unrelated
+    `idea-intake` tunnel made that true, so the live tunnel was skipped. Tunnels
+    are now checked **per tunnel** (`39cc9b86` live, `test-harness` test).
+  - **the hermetic tier stayed down** (backend `:4101`, front `:4098`) because
+    only its front was supervised. The watchdog now supervises the hermetic
+    backend too: start it, and if `:4101` is unusable take a fresh port from the
+    hermetic pool (`4116–4125`) and repoint the hermetic front.
+- Heartbeat now reads
+  `front:4102=up backend:4103=up hermetic-front:4098=up hermetic-backend:4101=up test:4097=up cloudflared=N live-tunnel=… test-tunnel=…`.
+- Verified after the fixes: live public + local, hermetic and test `/global/health`
+  all `healthy` on `0.0.0-dev-202609211818`; watchdog v5 running.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
