@@ -446,6 +446,32 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Verified after the fixes: live public + local, hermetic and test `/global/health`
   all `healthy` on `0.0.0-dev-202609211818`; watchdog v5 running.
 
+## 2026-09-22 – F26: M1 — blue/green deploy measured, 0 failed requests
+
+- **Tier-parameterized deploy.** `motn-deploy.ps1 -Tier live|hermetic|test`
+  (front + rotating pool per tier); `motn-serve-any.cmd <tier> <port> <binary>`
+  starts any tier on any port with any binary; `motn-probe.ps1` is the oracle
+  (health + manifest + auth-gate sampling, `failed`/`maxGapMs`/`byStatus`).
+- **Two real bugs found by running it:**
+  1. every backend appended to one shared log file, and Windows locks it while an
+     instance runs — so a *candidate* backend's redirection failed and it never
+     started (`The process cannot access the file...`). This would have broken
+     live blue/green too. Logs are now per instance (`harness-serve-<tier>-<port>.log`,
+     `harness-server-<port>.log`).
+  2. Windows locks a running image, so blue/green cannot overwrite the pinned
+     binary. Builds are now staged as `harness\bin\motn-<tier>-<version>-<stamp>.exe`
+     (unique per deploy), recorded in the state, and GC'd by `drain`.
+- Also: `drain` treats a turn as in flight only if the incomplete assistant
+  message is <5 min old (a stale snapshot row no longer blocks retirement).
+- **Measured on the hermetic tier** (probe during a real promote):
+  `RESULT: PROMOTED front :4098 -> backend :4117`, `RESULT: DRAINED turn=idle
+  waited=0s`; probe **207 samples, failed 0, maxGap 678ms** (200×138, 401×69).
+  Baseline for the legacy promote (F24) was 15 failed requests and 7.2s down, so
+  the acceptance target (≤3 failed, ≤2s gap) is met.
+- Next: M2 hardening (PID-reuse-safe kills, promote/watchdog arbitration lock,
+  migration-aware cutover, v2 `SessionStatus`) and the fault-injection catalogue;
+  then the same deploy path end-to-end on `test.harness`.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
