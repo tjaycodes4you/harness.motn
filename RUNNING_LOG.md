@@ -519,6 +519,38 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   backend :4127`; `DRAINED waited=0s`; `live-test smoke -Tier staging` 7/7.
 - Live untouched throughout (still `:4104` / `0.0.0-dev-202609220909`).
 
+## 2026-09-22 – F29: M2 hardening + 7/7 adversarial catalogue on test.harness
+
+- **Hardening** (`motn-deploy.ps1`, watchdog): build nonce identity
+  (`/global/health` reports `build`, asserted against the staged binary's
+  sha256), per-tier arbitration lock (`RESULT: BUSY` on a concurrent deploy),
+  PID-reuse-safe kills (image name/path checked; never kills `powershell`),
+  warmup through the front after a swap (max gap 1942ms → 517ms on hermetic),
+  migration-overlap detection (`migrations=+N`), and retry across distinct pool
+  ports.
+- **Bugs found by running it adversarially:**
+  1. the free-port probe was connect-based, so a port wedged by an orphaned
+     socket looked free and the candidate could not bind → bind-based probe;
+  2. the retry loop re-picked the same failed port every attempt → it now skips
+     failed ports;
+  3. the retry loop killed the port owner, including a healthy backend another
+     actor had just started → it no longer kills ports it did not start.
+- **The live front wedged** (`/__front/status` answered while a proxied request
+  with a real `Host` hung → public 502). Fixes: the watchdog now health-checks
+  fronts **through the proxy**, `-Action backend` reconciles the front's upstream
+  with the healthy backend, and the hermetic front restart passes the state
+  *path* (passing the parsed object looped it).
+- **Catalogue on `test.harness` (public probe): 7/7 PASS** — `clean` (0 failed,
+  723ms), `port-occupied`, `candidate-crash` (BLOCKED, site up), `rollback-missing`
+  (BLOCKED, site up), `lock-race` (one PROMOTED + one BUSY), `backend-killed`,
+  `front-killed`. Evidence: `C:\Users\TJ\bin\evidence\adversary-test-*.json`.
+- **Live promote after the gate**: `PROMOTED front :4102 -> backend :4103
+  (0.0.0-dev-202609220938)`, probe **0 failed** / 3146ms max gap, `DRAINED
+  waited=40s` (a real in-flight turn — L2 held), live smoke 7/7. Live now serves
+  `0.0.0-dev-202609220938` with the build nonce.
+- Follow-up: live max gap was 3146ms (above the 2.5s target) — likely the swap
+  plus drain on the larger live DB; investigate a stronger warmup.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
