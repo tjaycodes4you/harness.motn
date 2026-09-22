@@ -409,6 +409,26 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   the live server — HTTP, SSE, WebSocket (PTY) pass-through and runtime upstream
   swap all work; see `docs/features/deploy-contract.md` (WIP).
 
+## 2026-09-22 – F24: live stuck loading -> blue/green topology is live
+
+- **Outage (user: "harness.motn is stuck in loading"):** `:4099` was bound by
+  dead PID 6496 (orphaned socket again — the server crashed at 04:26:57 after
+  ~13h). The watchdog correctly flagged `:4099=zombie` and tried
+  `taskkill /F /T /PID 6496`, but the process no longer existed so the port could
+  not be freed and restarts could not bind. Public requests hung (tunnel up,
+  origin dark).
+- **Response:** adopted the front-based topology now instead of moving ports
+  again. cloudflared → **front `:4102`** → **backend `:4103`**; `motn-deploy.ps1`
+  (`status|backend|promote|drain`) starts backends on the first free pool port
+  (4103–4115), health-gates them, swaps the front and records `deploy-state.json`;
+  `harness-serve.cmd [port]` is port-parameterized; watchdog v4 supervises front,
+  backend, test harness and tunnels with `front:/backend:` heartbeats.
+- A stuck pool port is now retired rather than reused, which removes the whole
+  `4096 → 4098 → 4099` class; `promote` also sha256-verifies the copied binary.
+- Verified: public `/global/health` healthy on `0.0.0-dev-202609211818` through
+  the front; `live-test.cmd smoke` → `RESULT: PASS` 7/7; `motn-deploy -Action
+  status` green. Details: `docs/features/deploy-contract.md`.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
