@@ -5,10 +5,22 @@ and must not kill in-flight agent turns (L2). Allowance: ≤3 failed public
 requests, ≤2s max gap, SSE reconnect <3s; PTY terminals drain up to 10 minutes
 before being retired (turns are never force-killed).
 
+## Tiers
+
+| Tier | Public entry | Front | Backend pool | Build drop | State |
+|---|---|---|---|---|---|
+| live | `harness.motionlabs.ng` | `:4102` | 4103–4115 | harness dist | `deploy-state.json` |
+| test | `test-harness.motionlabs.ng` | `:4097` | 4126–4135 | harness dist | `deploy-state-test.json` |
+| hermetic | local only | `:4098` | 4116–4125 | — (uses staged copies) | `deploy-state-hermetic.json` |
+
+`motn-deploy.ps1 -Tier <tier> -Action status|backend|promote|drain`. Promoting
+**live** also requires `-AllowLive`; recovery actions are never gated so a broken
+live backend can always self-heal.
+
 ## Topology
 
 ```
-cloudflared (harness.motionlabs.ng) -> front :4102 (fixed) -> backend :4103..4115 (pool)
+cloudflared -> front (fixed port) -> backend (rotating pool port)
 ```
 
 - **`motn-front.js`** — stable entrypoint. Proxies HTTP, streams SSE without

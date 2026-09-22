@@ -499,6 +499,26 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Follow-up: the single 2.6s slow response during the swap (no failures) — add a
   warmup request through the front after swapping.
 
+## 2026-09-22 – F28: test tier behind a front; live promotes gated
+
+- **Phase 0 guard:** `motn-deploy.ps1 -Tier live -Action promote` now requires
+  `-AllowLive`. Recovery actions (`status`/`backend`/`drain`) are never gated so a
+  broken live backend can always self-heal.
+- **Phase 1 (test = blue/green):** started a test front on `:4097` (tunnel target
+  unchanged), moved the backend to pool port `:4126`, seeded
+  `deploy-state-test.json`; `harness-deploy-test.cmd` is now an alias for
+  `motn-deploy -Tier test -Action promote`; watchdog and autostart supervise the
+  test **front** + test backend from the tier state (no more raw `:4097`
+  restarts). Watchdog heartbeats now read `test-front:4097=… test-backend:<p>=…`.
+- Two fixes found while doing it: the test tier's `pin` was the *running* image
+  (so the pin-copy step hit the image lock) — the pin is now
+  `harness\motn-test.exe`; and the pin copy is non-fatal (a locked pin only skips
+  the compatibility copy).
+- **Acceptance:** probe on `https://test-harness.motionlabs.ng` during a test
+  promote → **0 failed**, maxGap 1468ms; `RESULT: PROMOTED front :4097 ->
+  backend :4127`; `DRAINED waited=0s`; `live-test smoke -Tier staging` 7/7.
+- Live untouched throughout (still `:4104` / `0.0.0-dev-202609220909`).
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
