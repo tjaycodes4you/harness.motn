@@ -13,6 +13,9 @@ export async function motnPost<T>(server: ServerConnection.HttpBase, path: strin
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
-  if (!response.ok) throw new Error((await response.text().catch(() => "")) || response.statusText)
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).trim()
+    throw new Error(`${response.status} ${detail || response.statusText}`.trim())
+  }
   return (await response.json()) as T
 }

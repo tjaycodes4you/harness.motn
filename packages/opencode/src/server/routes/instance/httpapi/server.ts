@@ -219,7 +219,9 @@ const motnRoute = HttpRouter.use((router) =>
           Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]),
         )
         if (code !== 0) {
-          return HttpServerResponse.jsonUnsafe({ error: err.slice(0, 600) || `sync worker exited ${code}` }, { status: 500 })
+          const detail = err.trim().slice(0, 600) || `sync worker exited ${code}`
+          console.error(`[motn-sync] ${direction} failed (exit ${code}): ${detail}`)
+          return HttpServerResponse.jsonUnsafe({ error: detail }, { status: 500 })
         }
         const parsed = yield* Effect.try({
           try: () => JSON.parse(out) as unknown,

@@ -472,6 +472,33 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   migration-aware cutover, v2 `SessionStatus`) and the fault-injection catalogue;
   then the same deploy path end-to-end on `test.harness`.
 
+## 2026-09-22 – F27: sync "fail" triage + first live blue/green deploy
+
+- User reported "sync from opencode" showing fail. **Not reproducible**: direct
+  worker pull 5/5 exit 0; `POST /experimental/motn/sync` 200 in 4-5s locally and
+  publicly (inserted 20-274 rows); push 200 (idempotent, `inserted: 0`). Both DBs
+  are WAL with `busy_timeout 5000`, so writer contention is not it. Most likely a
+  transient in the 04:44-04:50 reboot window (backend down 04:44:53 → 04:48:49,
+  live tunnel missing until ~04:50) or a CF edge blip (one 502 observed on push
+  that a retry cleared).
+- Made failures diagnosable: `runMerge` now logs worker failures to the server
+  log (`[motn-sync] pull failed (exit N): ...`) and the settings toast includes
+  the HTTP status (`motn-api.ts`).
+- Two deploy-manager bugs found while verifying:
+  - the watchdog restarted the **retired** hermetic backend on a hardcoded
+    `:4101` and swapped the hermetic front back to stale code. It now delegates
+    to `motn-deploy -Action backend` so port/binary come from the tier state.
+  - `Read-State` returns the full state shape now (an old state file without
+    `previousBinary` aborted a live promote mid-way).
+- **First live blue/green deploy**: `RESULT: PROMOTED front :4102 -> backend
+  :4104 (0.0.0-dev-202609220909)`; probe on the public URL: 243 samples, **0
+  failed**, 2668ms max gap; `DRAINED turn=idle waited=110s`; live smoke 7/7.
+  `promote` now also updates the pinned path (not the running image in
+  blue/green, so unlocked) and `live-test.ps1` reads the expected version from
+  the tier state instead of the pin.
+- Follow-up: the single 2.6s slow response during the swap (no failures) — add a
+  warmup request through the front after swapping.
+
 ## 2026-09-21 – M4: orphaned `:4098` socket; live moved to `:4099`
 
 - The armed promote (14:23) killed the `:4098` listener and **the port never came
