@@ -8,7 +8,7 @@ import { defineConfig, devices } from "@playwright/test"
 //   SITE_PASSWORD  required for staging/live
 //   LIVE_EVIDENCE_DIR  where report.json/build.json/artifacts land (set by live-test.cmd)
 const tierURLs: Record<string, string> = {
-  hermetic: "http://127.0.0.1:4099",
+  hermetic: "http://127.0.0.1:4098",
   staging: "https://test-harness.motionlabs.ng",
   live: "https://harness.motionlabs.ng",
 }

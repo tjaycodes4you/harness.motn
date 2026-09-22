@@ -357,6 +357,26 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Verified after recovery: live `RESULT: PASS` 7/7 on `0.0.0-dev-202609211818`;
   KB verify 5/5; watchdog heartbeating with health detail.
 
+## 2026-09-22 – F24: deploy suite M0 — stable front + hermetic tier
+
+- `motn-front.js` (Bun): fixed-port entrypoint proxy with loopback swap control
+  (`GET /__front/status`, `POST /__front/upstream`), SSE streaming and WebSocket
+  upgrade bridging. Proven: an SSE and a WS opened before a hot swap keep
+  receiving from the old backend (34/34 and 12/12 events) while new connections
+  go to the new one; plain HTTP follows the swap immediately.
+- Front proxy bug found + fixed during hermetic bring-up: Bun's `fetch` hands
+  over a decoded body, so forwarding `content-encoding` made browsers fail with
+  `ERR_CONTENT_DECODING_FAILED`; the front now forces identity encoding upstream
+  and strips hop-by-hop/encoding headers.
+- Hermetic tier: isolated instance on `:4101` behind the front on `:4098`
+  (roots `C:\Users\TJ\.harness.motn-hermetic`, DB seeded once from live with
+  `VACUUM INTO`), creds in `live-creds.json`, tier URL in `env.ts` +
+  `playwright.config.ts` → `http://127.0.0.1:4098`. Port 4100 was already taken
+  by a stale node server: the deploy manager must probe for a free port.
+- Watchdog supervises the front (`kind=front`, `/__front/status`) next to live
+  `:4099` and test `:4097`, heartbeats read `up|down|zombie`.
+- Verified: hermetic `live-test smoke` → `RESULT: PASS` 7/7 in 26s.
+
 ## 2026-09-21 – M5: name-based process kills killed the CALLING agent (twice)
 
 - **Mistake:** cleanup used `Get-Process -Name bun | Stop-Process` and

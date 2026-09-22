@@ -5,7 +5,7 @@ import path from "node:path"
 export type Tier = "hermetic" | "staging" | "live"
 
 const tierURLs: Record<Tier, string> = {
-  hermetic: "http://127.0.0.1:4099",
+  hermetic: "http://127.0.0.1:4098",
   staging: "https://test-harness.motionlabs.ng",
   live: "https://harness.motionlabs.ng",
 }
