@@ -377,6 +377,20 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `:4099` and test `:4097`, heartbeats read `up|down|zombie`.
 - Verified: hermetic `live-test smoke` → `RESULT: PASS` 7/7 in 26s.
 
+## 2026-09-22 – F25: deploy-cost baseline (legacy kill-then-rebind)
+
+- Tooling: `deploy-probe.js` (2 Hz health + manifest + auth-gate sampling, SSE
+  disconnect/reconnect tracking, `deploy.json` with a verdict against the
+  allowance `<=3 failed / <=2s gap / <3s reconnect`) and `deploy-legacy.ps1`
+  (the current kill-then-rebind algorithm, parameterized per tier, with fault
+  switches: port-busy, rollback-missing, copy-truncate).
+- Hermetic run (front `:4098` → backend `:4101`, same build both sides):
+  **FAIL — 15 failed requests, max gap 7.2s, 5 SSE disconnects (first reconnect
+  6.7s)**. Port waits and health gates don't help: kill-then-rebind has a dead
+  window by construction.
+- Evidence: `C:\Users\TJ\bin\evidence\deploy-baseline-20260922-hermetic.json`.
+- Next: M2 gates, then M3 blue/green + drain measured against this baseline.
+
 ## 2026-09-21 – M5: name-based process kills killed the CALLING agent (twice)
 
 - **Mistake:** cleanup used `Get-Process -Name bun | Stop-Process` and
