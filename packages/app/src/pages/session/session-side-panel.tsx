@@ -17,7 +17,7 @@ import {
 import { Tabs } from "@opencode-ai/ui/tabs"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Icon } from "@opencode-ai/ui/icon"
-import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
+import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Mark } from "@opencode-ai/ui/logo"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
@@ -354,6 +354,19 @@ export function SessionSidePanel(props: {
                                   value="review"
                                   id={reviewTabID}
                                   aria-controls={activeTab() === "review" ? reviewTabPanelID : undefined}
+                                  closeButton={
+                                    <Tooltip value={language.t("common.close")} placement="bottom" gutter={10}>
+                                      <IconButton
+                                        icon="close-small"
+                                        variant="ghost"
+                                        class="h-5 w-5"
+                                        onClick={() => view().reviewPanel.close()}
+                                        aria-label={language.t("common.close")}
+                                      />
+                                    </Tooltip>
+                                  }
+                                  hideCloseButton
+                                  onMiddleClick={() => view().reviewPanel.close()}
                                 >
                                   <div class="flex items-center gap-1.5">
                                     <div>{language.t("session.tab.review")}</div>
@@ -565,6 +578,19 @@ export function SessionSidePanel(props: {
                                 value="review"
                                 id={reviewTabID}
                                 aria-controls={activeTab() === "review" ? reviewTabPanelID : undefined}
+                                closeButton={
+                                  <TooltipV2 value={language.t("common.close")} placement="bottom" gutter={10}>
+                                    <IconButton
+                                      icon="close-small"
+                                      variant="ghost"
+                                      class="h-5 w-5"
+                                      onClick={() => view().reviewPanel.close()}
+                                      aria-label={language.t("common.close")}
+                                    />
+                                  </TooltipV2>
+                                }
+                                hideCloseButton
+                                onMiddleClick={() => view().reviewPanel.close()}
                               >
                                 {props.hasReview()
                                   ? language.t("session.review.filesChanged", { count: props.reviewCount() })
