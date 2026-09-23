@@ -663,6 +663,16 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   search, doc viewer, claims table render; unauthenticated request -> 401.
   Screenshots: `C:\Users\TJ\bin\evidence\kb-console-public-*.png`.
   Docs: `docs/features/public-knows-console.md`.
+- **Running backends must be restarted to pick up config** (M, same day):
+  MCP + plugin load at server start, so the tiers running before the config
+  change had neither (`GET /mcp` was `{}` on live). All four tiers were
+  promoted onto fresh backends (live -> :4107, test -> :4127, staging -> :4137,
+  hermetic -> :4116); `/mcp` now returns
+  `{"motn-knows":{"status":"connected"}}` on every tier through its front.
+  The auto-brief plugin rides the same restart (subagent injection re-verified
+  in a real `motn-live run`: child explore session got its own 2.2KB brief).
+  Claude Code got the KB MCP too (`claude mcp add -s user motn-knows -- kb.exe
+  mcp`, connected); the push-brief is opencode/harness-only by construction.
 
 
 
