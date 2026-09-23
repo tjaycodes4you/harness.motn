@@ -591,6 +591,52 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `motn-live.exe __motn-sync --push` → 20,231 rows (event 15,022, message 1,047,
   part 4,156, todo 6), reconciled 233; plain opencode DB now holds today's sessions.
 
+## 2026-09-22/23 — F30: review-panel ×; staging tier (staging-harness.motionlabs.ng)
+
+- **Review panel close button.** The Review tab chip now has an × in both the v2
+  and legacy tab strips (same closeButton pattern as the Context tab); it calls
+  `view().reviewPanel.close()` and middle-click closes too. No keybind, so this
+  cannot steal hard refresh the way the removed `review.toggle` did (F16).
+  Commits: `dee90b6425` (fix(app)), verified in Playwright on **staging public +
+  localhost** and **live public** (open → × → panel unmounts → reopen via the
+  context pill); evidence `C:\Users\TJ\bin\evidence\review-close-{staging,live}-*`.
+- **Staging tier** added end to end: `staging-harness.motionlabs.ng` via
+  cloudflared tunnel `staging-harness` (`f42f581c-…`), front `:4136` → pool
+  `4137–4146`, own root `C:\Users\TJ\.harness.motn-staging` (DB seeded one-time
+  via `VACUUM INTO` from the live DB), ungated promotes, state/pin/tunnel restart
+  script/watchdog/autostart/probe/adversary all wired. livetest tiers renamed:
+  `test` = test-harness, `staging` = staging-harness, `live` unchanged
+  (`ae63b52071`). First promote 0 failed/674ms, smoke 7/7, catalogue 7/7 (clean
+  re-run after one probe-file flake).
+- **Live promote of the same build** (`0.0.0-dev-202609222223`, nonce
+  `011294B4…`): `PROMOTED :4102 -> :4106`, probe **0 failed / 496ms**, drain
+  waited, live smoke 7/7, review-× verified live. Commits: `4acd819f43` (build
+  nonce in `/global/health`), `51922b8ffc` (deploy contract).
+- **M6 — cloudflared resolves tunnel names loosely.** `cloudflared tunnel route
+  dns staging-harness …` (and `tunnel info staging-harness`) matched the
+  `harness` tunnel, so the staging hostname's CNAME pointed at the **live**
+  tunnel. Fixed by always passing the tunnel **UUID** (`f42f581c…`) and deleting
+  the bad record. Same rule as M5: names are not identities.
+- **M7 — WMI detach can hang a deploy.** A staging promote sat >15 min inside
+  `harness-detach.ps1`'s `Invoke-CimMethod Win32_Process.Create` (broken-
+  candidate path). `Start-Detached` now runs the detach as a job with a 45s cap;
+  the stuck promote was killed by explicit PID. The lock still guards duplicates.
+- **M8 — two more hang/kill classes in `motn-deploy.ps1`.** (a) `Wait-Backend`
+  used a wall-clock deadline and an `Invoke-WebRequest` loop; it was observed
+  hung >10 min (thread in ExecutionDelay) even after the detach was bounded →
+  iteration-counted loop + `HttpClient` with a hard 5s request timeout. (b) a
+  `drain` died mid-kill because `taskkill`'s stderr became a terminating
+  `NativeCommandError` under EAP=Stop → taskkill now runs via `cmd /c` with a
+  survivor check. The interrupted live drain left `previousPort: 4105` in state
+  after 4105 was already dead; state was repaired by hand (drain tail).
+- **Orphaned pool ports are normal now.** 4103/4104/4105 remain `LISTENING`
+  with dead owners after their backends were killed — the wedgeable-socket class
+  that motivated blue/green. The front never points at them; they are retired by
+  design (the pool has 4107–4115 left on live).
+- CF Free plan has **no cert for nested hosts**: `staging.harness.motionlabs.ng`
+  fails TLS (Universal SSL covers apex + one level only), hence the one-level
+  `staging-harness.motionlabs.ng`. A nested host needs Total TLS / ACM.
+
 
 
 
