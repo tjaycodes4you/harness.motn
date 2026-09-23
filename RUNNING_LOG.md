@@ -637,6 +637,33 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   fails TLS (Universal SSL covers apex + one level only), hence the one-level
   `staging-harness.motionlabs.ng`. A nested host needs Total TLS / ACM.
 
+## 2026-09-23 - F31: public KB console at /knows/ (front-gated, watchdog-supervised)
+
+- **What shipped** - `https://harness.motionlabs.ng/knows/` serves the KB
+  console + read API behind the harness live Basic creds (realm `motn.knows`).
+  `motn-front.js` now reads `front-knows.json` (`enabled`, `upstream: 7781`,
+  `ports: [4102]`, creds) at boot; `/knows*` gets a constant-time Basic check,
+  then proxies to the fixed `:7781` origin (never the rotating backend). Other
+  tier fronts cannot expose it (port allowlist; fail-closed when config is
+  missing). No cloudflared/DNS/tunnel change - same host, same TLS.
+- **Origin** - the API app mounts twice (`/` local, `/knows` public); the
+  console derives its base from `location.pathname`; `Cache-Control: no-store`
+  on everything so phones never serve stale KB. API tests 11/11.
+- **Supervision** - `harness-watchdog.ps1` now health-checks `:7781` and
+  re-launches `motn-knows-api.cmd`; `harness-autostart.cmd` starts it at boot;
+  heartbeat gained `kb-api=up|down`. Recovery proven: killed the daemon, back
+  within seconds (`kb api :7781 unhealthy -> restarting`).
+- **Pre-production proof** - the front patch was exercised on a throwaway front
+  (`:7789` -> live backend): no auth 401 + realm header, live creds 200 HTML,
+  `/knows/health` + `/knows/search` 200 JSON, wrong creds 401, `/global/health`
+  proxying intact. Then the live front `:4102` was restarted onto it; harness
+  root still 200 with creds.
+- **Rule 5** - Playwright on the real public URL (desktop + mobile 390x844):
+  chips 47 docs / 253 claims / 163 fact / 88 WA / index v79 / embeddings ON;
+  search, doc viewer, claims table render; unauthenticated request -> 401.
+  Screenshots: `C:\Users\TJ\bin\evidence\kb-console-public-*.png`.
+  Docs: `docs/features/public-knows-console.md`.
+
 
 
 

@@ -40,6 +40,14 @@ cloudflared -> front (fixed port) -> backend (rotating pool port)
   - `POST /__front/upstream` → `{ "port": 4104, "build": "0.0.0-dev-..." }`
   Its active upstream lives in `front-<port>.json`, so a front restart resumes
   the right backend.
+  It also carries the **public KB console route**: when
+  `C:\Users\TJ\bin\front-knows.json` is `enabled` and the front's listen port is
+  in its `ports` list (only live `:4102`), `/knows/*` is gated by its own
+  constant-time Basic check (realm `motn.knows`) and proxied to the fixed KB API
+  (`:7781`, `motn-knows-api.cmd`) instead of the rotating backend. Fail-closed:
+  config missing/disabled or port not listed → `/knows` goes to the normal
+  upstream (404). Config is read once at front boot; restart the front to change
+  it. See `docs/features/public-knows-console.md`.
 - **`motn-deploy.ps1`** (entry `motn-deploy.cmd`) — `status | backend | promote | drain`:
   - `backend`: if the backend is unhealthy, start one on the first free pool port,
     gate on `/global/health`, swap the front, update `deploy-state.json`.
