@@ -2,17 +2,18 @@ import { mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-export type Tier = "hermetic" | "staging" | "live"
+export type Tier = "hermetic" | "test" | "staging" | "live"
 
 const tierURLs: Record<Tier, string> = {
   hermetic: "http://127.0.0.1:4098",
-  staging: "https://test-harness.motionlabs.ng",
+  test: "https://test-harness.motionlabs.ng",
+  staging: "https://staging-harness.motionlabs.ng",
   live: "https://harness.motionlabs.ng",
 }
 
 export function tier(): Tier {
   const value = process.env.LIVE_TIER ?? "staging"
-  if (value === "hermetic" || value === "staging" || value === "live") return value
+  if (value === "hermetic" || value === "test" || value === "staging" || value === "live") return value
   throw new Error(`unknown LIVE_TIER: ${value}`)
 }
 
