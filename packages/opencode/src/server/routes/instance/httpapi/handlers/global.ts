@@ -72,7 +72,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const bridge = yield* EffectBridge.make()
 
     const health = Effect.fn("GlobalHttpApi.health")(function* () {
-      return { healthy: true as const, version: InstallationVersion }
+      return { healthy: true as const, version: InstallationVersion, build: process.env.MOTN_BUILD_ID || undefined }
     })
 
     const event = Effect.fn("GlobalHttpApi.event")(function* () {

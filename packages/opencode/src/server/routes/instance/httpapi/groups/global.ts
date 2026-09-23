@@ -11,6 +11,9 @@ import { described } from "./metadata"
 const GlobalHealth = Schema.Struct({
   healthy: Schema.Literal(true),
   version: Schema.String,
+  // harness.motn: build nonce supplied by the deploy manager (sha256 of the
+  // staged binary) so a health check can prove *which* build answered.
+  build: Schema.optional(Schema.String),
 })
 
 const SyncEventSchemas = EventManifest.Latest.values()
