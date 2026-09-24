@@ -49,7 +49,7 @@ function SessionTabSlot(props: {
       data-titlebar-tab-slot
       data-tab-key={props.id}
       data-active={props.active()}
-      class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
+      class="relative flex w-40 min-w-7 max-w-56 shrink-0 md:w-56 md:shrink"
     >
       <TabNavItem
         ref={(el) => {
@@ -192,7 +192,7 @@ function DraftTabSlot(props: {
       data-titlebar-tab-slot
       data-tab-key={props.id}
       data-active={props.active()}
-      class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
+      class="relative flex w-40 min-w-7 max-w-56 shrink-0 md:w-56 md:shrink"
     >
       <DraftTabItem
         ref={(el) => {
@@ -332,7 +332,7 @@ export function TitlebarTabStrip(props: {
             }
           }}
         >
-          <div data-titlebar-tab-list class="flex w-full min-w-0 flex-row items-center" ref={listRef}>
+          <div data-titlebar-tab-list class="flex w-max min-w-0 flex-row items-center md:w-full" ref={listRef}>
             <For each={props.tabs}>
               {(tab) => {
                 const id = tabKey(tab)

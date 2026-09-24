@@ -724,6 +724,38 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   working tree is clean there, so this is already on `dev`; fix when touching
   i18n.
 
+## 2026-09-24 - F33: mobile UX pass - composer overlap, tab strip scroll, in-session switch
+
+- **Symptom** (user, phone): the Send (up-arrow) button sat on top of the
+  "thinking effort" (model variant) button; only ~2 session tabs were usable in
+  portrait; no way to resume an old session from inside a session.
+- **Composer overlap**: the prompt-input bottom row's left cluster
+  (`flex-1 min-w-0`) never actually shrank its children - the model/variant
+  `ButtonV2`s sit inside `TooltipV2` trigger divs (default min-width:auto), so
+  they overflowed and drew over the Send button (measured 28x28 overlap at
+  390px). Fix: `overflow-hidden` on the cluster, `min-w-0 flex` on the
+  model/variant/agent TooltipV2 triggers, `min-w-0` on the select button and
+  its label span, `shrink-0` on attach + submit
+  (`packages/session-ui/src/v2/components/prompt-input/index.tsx`,
+  `packages/app/src/components/prompt-input-v2.tsx`). Verified 0 overlap at
+  390px on test + live.
+- **Tab strip**: slots were `w-56 flex-shrink` inside a `w-full` list, so tabs
+  shrank to ~76px slivers and `overflow-x-auto` never engaged (scrollWidth ==
+  clientWidth). Fix: `w-40 shrink-0 md:w-56 md:shrink` on the slots + `w-max
+  md:w-full` on the list, so mobile tabs stay 160px and scroll
+  (`titlebar-tab-strip.tsx`; desktop unchanged). Verified: 3 tabs ->
+  scrollWidth 492 > clientWidth 207 at 390px.
+- **In-session switch ("resume old session")**: added a "Switch session"
+  (history icon) button next to "+" in the titlebar that opens
+  `DialogHomeCommandPaletteV2` for the current server; selecting a session
+  opens it in a tab (`titlebar.tsx`, reuses the home palette flow; `history`
+  icon added to `packages/ui/src/v2/components/icon.tsx`). Verified end-to-end
+  on live: opened a session -> switch -> searched "outlook" -> selected ->
+  navigated to `ses_fff393...`, tab count 2.
+- **Rollout**: build `0.0.0-dev-202609240827` promoted test `:4130`, staging
+  `:4140`, live `:4110`; Playwright mobile audit (390x844, touch) green on test
+  and live. Docs: `docs/features/mobile-ux.md`.
+
 
 
 

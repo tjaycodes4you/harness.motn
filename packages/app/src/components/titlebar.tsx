@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, Match, onMount, Show, Switch, untrack } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, Match, onMount, Show, startTransition, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { IconButton } from "@opencode-ai/ui/icon-button"
@@ -9,6 +9,7 @@ import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
 
 import { LayoutRoute, useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -54,6 +55,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
   const language = useLanguage()
   const settings = useSettings()
   const server = useServer()
+  const dialog = useDialog()
   const navigate = useNavigate()
   const location = useLocation()
   const params = useParams()
@@ -180,6 +182,31 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
             const global = useGlobal()
 
             const tabs = useTabs()
+
+  const openSessionSwitcher = async () => {
+    const conn = server.current
+    if (!conn) return
+    const ctx = global.ensureServerCtx(conn)
+    const { DialogHomeCommandPaletteV2 } = await import("@/components/dialog-command-palette-v2")
+    void dialog.show(() => (
+      <DialogHomeCommandPaletteV2
+        server={conn}
+        onSelectSession={(entry) => {
+          const sessionID = entry.sessionID
+          const serverKey = entry.server
+          const directory = entry.directory
+          if (!sessionID || !directory || !serverKey) return
+          const worktree = entry.project?.worktree ?? directory
+          ctx.projects.open(worktree)
+          ctx.projects.touch(worktree)
+          startTransition(() => {
+            const tab = tabs.addSessionTab({ server: serverKey, sessionId: sessionID })
+            tabs.select(tab)
+          })
+        }}
+      />
+    ))
+  }
             const tabsStore = tabs.store
             const tabsStoreActions = tabs
             const [session] = createResource(
@@ -412,6 +439,17 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                     icon={<IconV2 name="plus" />}
                     onClick={openNewTab}
                     aria-label={language.t("command.session.new")}
+                  />
+                </TooltipV2>
+                <TooltipV2 placement="bottom" value="Switch session">
+                  <IconButtonV2
+                    type="button"
+                    variant="ghost-muted"
+                    size="large"
+                    class="shrink-0"
+                    icon={<IconV2 name="history" />}
+                    onClick={() => void openSessionSwitcher()}
+                    aria-label="Switch session"
                   />
                 </TooltipV2>
                 <div class="flex-1" />
