@@ -1472,6 +1472,7 @@ export interface ToolProps {
   sessionID?: string
   output?: string
   status?: string
+  startedAt?: number
   hideDetails?: boolean
   defaultOpen?: boolean
   open?: boolean
@@ -1626,6 +1627,8 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               metadata={partMetadata()}
               // @ts-expect-error
               output={part().state.output}
+              // @ts-expect-error
+              startedAt={part().state.time?.start}
               status={part().state.status}
               hideDetails={props.hideDetails}
               defaultOpen={props.defaultOpen}
@@ -2192,12 +2195,28 @@ ToolRegistry.register({
   },
 })
 
+function formatElapsed(seconds: number) {
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 ToolRegistry.register({
   name: "shell",
   render(props) {
     const i18n = useI18n()
     const pending = () => props.status === "pending" || props.status === "running"
     const sawPending = pending()
+    const [elapsed, setElapsed] = createSignal(0)
+
+    createEffect(() => {
+      if (!pending() || !props.startedAt) return
+      const start = props.startedAt
+      const update = () => setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
+      update()
+      const timer = setInterval(update, 1000)
+      onCleanup(() => clearInterval(timer))
+    })
+
     const text = createMemo(() => {
       const cmd = props.input.command ?? props.metadata.command ?? ""
       const out = stripAnsi(props.output || props.metadata.output || "").replace(/\r\n?/g, "\n")
@@ -2225,6 +2244,11 @@ ToolRegistry.register({
               <span data-slot="basic-tool-tool-title">
                 <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
               </span>
+              <Show when={pending() && elapsed() > 0}>
+                <span data-slot="basic-tool-tool-elapsed" class="text-12-regular text-text-weak">
+                  {formatElapsed(elapsed())}
+                </span>
+              </Show>
               <Show when={!open() && props.input.command}>
                 <ShellSubmessage text={props.input.command} animate={sawPending} />
               </Show>

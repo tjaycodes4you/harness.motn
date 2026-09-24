@@ -270,16 +270,31 @@ export const make = Effect.gen(function* () {
       const proc = launch(command.command, command.args, opts)
       let end = false
       let exit: readonly [code: number | null, signal: NodeJS.Signals | null] | undefined
+      let drain: ReturnType<typeof setTimeout> | undefined
+      const close = (args: readonly [code: number | null, signal: NodeJS.Signals | null]) => {
+        if (end) return
+        end = true
+        if (drain !== undefined) {
+          clearTimeout(drain)
+          drain = undefined
+        }
+        Deferred.doneUnsafe(signal, Exit.succeed(exit ?? args))
+      }
       proc.on("error", (err) => {
         resume(Effect.fail(toPlatformError("spawn", err, command)))
       })
       proc.on("exit", (...args) => {
         exit = args
+        // A descendant can inherit the stdio pipes, so 'close' may never fire
+        // and the exit Deferred, output collectors and killers would hang.
+        // Stop reading shortly after exit so those paths settle.
+        drain ??= setTimeout(() => {
+          proc.stdout?.push(null)
+          proc.stderr?.push(null)
+        }, 500)
       })
       proc.on("close", (...args) => {
-        if (end) return
-        end = true
-        Deferred.doneUnsafe(signal, Exit.succeed(exit ?? args))
+        close(args)
       })
       proc.on("spawn", () => {
         resume(Effect.succeed([proc, signal]))

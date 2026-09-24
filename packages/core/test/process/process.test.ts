@@ -194,6 +194,28 @@ describe("AppProcess", () => {
         5_000,
       )
     }
+
+    it.live(
+      "settles when a descendant keeps the stdio pipes open",
+      Effect.gen(function* () {
+        const svc = yield* AppProcess.Service
+        // The direct child exits immediately but its grandchild inherits the
+        // stdio pipes, so 'close' must not be what settles the run.
+        const script = [
+          'const { spawn } = require("node:child_process")',
+          'const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 2500)"], { stdio: "inherit" })',
+          "child.unref()",
+          'process.stdout.write("done\\n")',
+        ].join(";")
+        const started = Date.now()
+        const result = yield* svc.run(cmd("-e", script))
+        const elapsed = Date.now() - started
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout.toString("utf8")).toBe("done\n")
+        expect(elapsed).toBeLessThan(2000)
+      }),
+      10_000,
+    )
   })
 
   describe("inherited platform methods", () => {
