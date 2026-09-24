@@ -38,6 +38,9 @@ cloudflared -> front (fixed port) -> backend (rotating pool port)
   loopback control plane:
   - `GET  /__front/status` → `{ listen, upstream, build, openStreams, uptimeSeconds }`
   - `POST /__front/upstream` → `{ "port": 4104, "build": "0.0.0-dev-..." }`
+  - `Bun.serve` sets `idleTimeout: 255` and clears the per-request timer for SSE
+    (`srv.timeout(req, 0)`): Bun's 10s default closed quiet streams
+    mid-response before the 15s heartbeat (F32, 2026-09-23 UI-freeze incident).
   Its active upstream lives in `front-<port>.json`, so a front restart resumes
   the right backend.
   It also carries the **public KB console route**: when

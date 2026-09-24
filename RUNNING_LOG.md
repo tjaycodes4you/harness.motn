@@ -674,6 +674,38 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   Claude Code got the KB MCP too (`claude mcp add -s user motn-knows -- kb.exe
   mcp`, connected); the push-brief is opencode/harness-only by construction.
 
+## 2026-09-23 - F32: front proxy closed quiet SSE streams (Bun idleTimeout) - frozen chat UI
+
+- **Symptom** (user report + screenshot): the web UI "very often doesn't update
+  the actual state" - an assistant message froze mid-stream ("stuck for awhile")
+  and tool parts sat at `running` while the server had already finished.
+- **Root cause**: `motn-front.js` called `Bun.serve` with no `idleTimeout`, so
+  Bun's 10s default was in force. It applies to *streaming* responses: any 10s
+  gap with no bytes closes the connection mid-response. The v2 event stream
+  heartbeats every **15s** (`packages/server/src/handlers/event.ts:37`), so a
+  quiet stream died before its first heartbeat. Measured: through the front
+  `:4102` `/api/event` died at **11.7s / 96 bytes / 0 heartbeats**, while the
+  same stream direct to `:4108` held 20s+ and the v1 `/global/event` (10s
+  heartbeat) barely survived.
+- **Why it looked stale**: the app reconnects (250ms loop,
+  `packages/app/src/context/server-sdk.tsx:220,308`) but the `server.connected`
+  handler only refreshes bootstrap/directory state (`server-sync.tsx:565-571`) -
+  the open session's messages/parts are never re-fetched, and missed live-only
+  deltas / `*.ended` events are unrecoverable. So each cut froze the timeline at
+  the drop point until route re-entry or reload; provider gaps of 1-8 minutes
+  are routine here (e.g. `ses_fff393...` msg_0d0d159f: text at 20:29:36, next
+  tool 20:33:32), so cuts fired constantly.
+- **Fix** (shipped): `C:\Users\TJ\bin\motn-front.js` - `idleTimeout: 255` on
+  `Bun.serve` + `srv.timeout(request, 0)` for `text/event-stream` requests.
+  All four fronts restarted (live `:4102`->`:4108`, test `:4097`->`:4127`,
+  staging `:4136`->`:4137` via watchdog, hermetic `:4098`->`:4116`). Verified:
+  SSE through the front and through the public tunnel stays open **35s+ with 3
+  heartbeats**; public console Playwright suite all green; harness root renders.
+- **App-side follow-up (next)**: on `server.connected`, force-sync the open
+  session (`session.sync(id, { force: true })`); the merge engine is already
+  refresh-safe (`server-session.test.ts:1013`). Until that lands, any future
+  stream loss (tunnel/deploy/network) still leaves the visible timeline stale.
+
 
 
 
