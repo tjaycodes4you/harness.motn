@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import {
+  adaptServerEvent,
+  coalesceServerEvents,
+  createEventStreamFetch,
+  enqueueServerEvent,
+  resumeStreamAfterPageShow,
+  watchEventStreamStall,
+} from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
@@ -12,6 +19,84 @@ describe("resumeStreamAfterPageShow", () => {
     resumeStreamAfterPageShow({ persisted: true } as PageTransitionEvent, start)
 
     expect(starts).toBe(1)
+  })
+})
+
+const bytes = (value: string) => new TextEncoder().encode(value)
+
+const createStreamSource = () => {
+  let controller!: ReadableStreamDefaultController<Uint8Array>
+  const stream = new ReadableStream<Uint8Array>({
+    start(next) {
+      controller = next
+    },
+  })
+  return {
+    stream,
+    enqueue: (value: string) => controller.enqueue(bytes(value)),
+    close: () => controller.close(),
+  }
+}
+
+describe("watchEventStreamStall", () => {
+  test("aborts the attempt when the stream stalls past the threshold", async () => {
+    const attempt = new AbortController()
+    const source = createStreamSource()
+    const reader = watchEventStreamStall(source.stream, () => attempt.abort(), 30).getReader()
+
+    source.enqueue(": heartbeat\n\n")
+    expect((await reader.read()).value).toEqual(bytes(": heartbeat\n\n"))
+
+    await Bun.sleep(100)
+    expect(attempt.signal.aborted).toBe(true)
+  })
+
+  test("keeps the attempt alive while chunks arrive before the threshold", async () => {
+    const attempt = new AbortController()
+    const source = createStreamSource()
+    const reader = watchEventStreamStall(source.stream, () => attempt.abort(), 50).getReader()
+
+    for (let index = 0; index < 4; index++) {
+      source.enqueue(": heartbeat\n\n")
+      await Bun.sleep(10)
+      expect((await reader.read()).done).toBe(false)
+    }
+    expect(attempt.signal.aborted).toBe(false)
+
+    source.close()
+    expect((await reader.read()).done).toBe(true)
+    await Bun.sleep(100)
+    expect(attempt.signal.aborted).toBe(false)
+  })
+})
+
+describe("createEventStreamFetch", () => {
+  const responseFetch = (response: Response) => (async () => response) as unknown as typeof globalThis.fetch
+
+  test("passes stream bytes through the watchdog", async () => {
+    const attempt = new AbortController()
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(bytes("data: {}\n\n"))
+          controller.close()
+        },
+      }),
+    )
+
+    const watched = await createEventStreamFetch(responseFetch(response), () => attempt.abort(), 30)(
+      "http://localhost/event",
+    )
+
+    expect(await watched.text()).toBe("data: {}\n\n")
+    expect(attempt.signal.aborted).toBe(false)
+  })
+
+  test("returns error responses unchanged", async () => {
+    const response = new Response("unavailable", { status: 503 })
+    const watched = await createEventStreamFetch(responseFetch(response), () => {})("http://localhost/event")
+
+    expect(watched).toBe(response)
   })
 })
 

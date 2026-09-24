@@ -164,6 +164,47 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () 
   start()
 }
 
+const EVENT_STREAM_STALL_MS = 40_000
+
+export function watchEventStreamStall(
+  stream: ReadableStream<Uint8Array>,
+  abort: () => void,
+  stallMs = EVENT_STREAM_STALL_MS,
+): ReadableStream<Uint8Array> {
+  const reader = stream.getReader()
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const timeout = setTimeout(abort, stallMs)
+      const next = await reader.read().finally(() => clearTimeout(timeout))
+      if (next.done) {
+        controller.close()
+        return
+      }
+      controller.enqueue(next.value)
+    },
+    async cancel() {
+      await reader.cancel()
+    },
+  })
+}
+
+export function createEventStreamFetch(
+  fetch: typeof globalThis.fetch,
+  abort: () => void,
+  stallMs = EVENT_STREAM_STALL_MS,
+): typeof globalThis.fetch {
+  const watched = async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await fetch(input, init)
+    if (!response.ok || !response.body) return response
+    return new Response(watchEventStreamStall(response.body, abort, stallMs), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    })
+  }
+  return Object.assign(watched, { preconnect: fetch.preconnect })
+}
+
 type ServerEventEmitter = ReturnType<typeof createGlobalEmitter<{ [key: string]: ServerEvent }>>
 type ServerSDKBase = {
   server: ServerConnection.Any
@@ -199,10 +240,13 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     }
   })()
 
-  const eventApi = createApiForServer({ server: server.http, fetch: eventFetch })
+  let attempt: AbortController | undefined
+  const streamFetch = createEventStreamFetch(eventFetch ?? globalThis.fetch, () => attempt?.abort())
+
+  const eventApi = createApiForServer({ server: server.http, fetch: streamFetch })
   const eventSdk = createSdkForServer({
     signal: abort.signal,
-    fetch: eventFetch,
+    fetch: streamFetch,
     server: server.http,
   })
   const protocol = detectServerProtocol(server.http, platform.fetch ?? globalThis.fetch)
@@ -252,7 +296,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
   let streamErrorLogged = false
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-  let attempt: AbortController | undefined
   let run: Promise<void> | undefined
   let started = false
   let generation = 0
