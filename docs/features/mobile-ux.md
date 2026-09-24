@@ -40,3 +40,6 @@ Playwright at 390x844 (iPhone UA, touch) against test and live: composer
 overlap = 0, 3 tabs scroll (`scrollWidth 492 > clientWidth 207`), switch button
 opens the palette, and a full switch (search "outlook" -> select) navigates to
 the target session and opens a second tab.
+
+Regression: `packages/app/e2e/regression/mobile-composer.spec.ts` (zero overlap
+among composer controls at 390px).

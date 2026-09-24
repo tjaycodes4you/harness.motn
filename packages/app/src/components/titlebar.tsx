@@ -441,7 +441,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                     aria-label={language.t("command.session.new")}
                   />
                 </TooltipV2>
-                <TooltipV2 placement="bottom" value="Switch session">
+                <TooltipV2 placement="bottom" value={language.t("command.session.switch")}>
                   <IconButtonV2
                     type="button"
                     variant="ghost-muted"
@@ -449,7 +449,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                     class="shrink-0"
                     icon={<IconV2 name="history" />}
                     onClick={() => void openSessionSwitcher()}
-                    aria-label="Switch session"
+                    aria-label={language.t("command.session.switch")}
                   />
                 </TooltipV2>
                 <div class="flex-1" />

@@ -756,6 +756,65 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `:4140`, live `:4110`; Playwright mobile audit (390x844, touch) green on test
   and live. Docs: `docs/features/mobile-ux.md`.
 
+## 2026-09-24 - F34: event-stream stall watchdog (half-open stream -> reconnect)
+
+- **Class**: a live SSE stream can go half-open (network swap, sleeping/throttled
+  tab) with no error and no close, so the 250ms reconnect loop in
+  `server-sdk.tsx` never fires and the UI keeps its frozen state. F32 fixed the
+  front-proxy close path; this covers the silent path.
+- **Fix (landed, uncommitted)**: `createEventStreamFetch` wraps the event-stream
+  fetch (`platform.fetch` or `globalThis.fetch`), pipes response-body chunks
+  through unchanged and arms a per-read `setTimeout`; >40s with no bytes aborts
+  the attempt's `AbortController` so `for await` throws and the existing
+  reconnect re-subscribes. 40s > 2x the v2 15s and > 4x the v1 10s heartbeat.
+  Non-2xx and null-body responses pass through untouched; the timer is cleared on
+  every read settle; raw chunks (heartbeat comments included) are what's timed.
+- **Files**: `packages/app/src/context/server-sdk.tsx`
+  (`watchEventStreamStall` + `createEventStreamFetch`, wired to `eventApi` /
+  `eventSdk` only; raw `eventFetch` kept for the error-log label).
+- **Tests**: `server-sdk.test.ts` 4 new cases - stall aborts, sub-threshold
+  chunks keep it alive (and quiet after close), fetch wrapper passes bytes
+  through, non-2xx returned unchanged. `bun test --conditions=solid` 14/14;
+  `bun typecheck` exit 0; `src/context` 313/313.
+- **Caveat**: not promoted/browser-verified on a tier yet; needs a real promote
+  plus a half-open repro (or fault injection) before calling it shipped.
+
+## 2026-09-24 - F35: shell tools no longer stick `running` (close-vs-exit) + elapsed ticker
+
+- **Root cause**: `packages/core/src/cross-spawn-spawner.ts` resolved the exit
+  Deferred only on Node's `'close'`; a descendant that inherits the stdio pipes
+  keeps `'close'` from ever firing, hanging `exitCode`, the output collectors,
+  `kill()` and the turn's `FiberSet.awaitEmpty` - the queued "forever-running
+  shell" bug.
+- **Fix**: after `'exit'`, push EOF to stdout/stderr after a 500ms drain so
+  `'close'` fires and every waiter settles. Normal commands finish inside the
+  drain, so their output is unchanged. Regression:
+  `packages/core/test/process/process.test.ts` "settles when a descendant keeps
+  the stdio pipes open" (process suite 23/23). The shell tool part now shows a
+  1s elapsed ticker while running (`packages/session-ui/src/components/message-part.tsx`).
+- **Deferred**: per-tool kill endpoint + startup sweep (original plan) - root
+  cause fixed, session Stop already interrupts in-flight tools, v2 fails
+  interrupted tools at run start, and the app has orphan-part handling. Docs:
+  `docs/bugs/stuck-shell-forever-running.md`.
+
+## 2026-09-24 - F36: TUI reconnect parity + hygiene batch
+
+- **TUI parity** (F32 follow-up): `packages/tui/src/context/sync.tsx` force-resyncs
+  the open session on `server.connected` and after `server.instance.disposed`
+  (`sync(sessionID, { force })` clears the one-shot full-sync marker); tests in
+  `sync-live-hydration.test.tsx` (7/7).
+- **Hermetic front state drift**: the watchdog + autostart pointed at
+  `front-hermetic.json` (stale, upstream `:4120`) while the running front used
+  `front-4098.json`; aligned both scripts to `front-4098.json` and removed the
+  stale file.
+- **i18n parity**: 5 English keys were missing from all 17 app locales
+  (`dialog.provider.custom.label`, `dialog.model.unpaid.viewMoreProviders`,
+  `session.header.reveal.{finder,fileExplorer,containingFolder}`); added them
+  plus `command.session.switch` (mobile switch button) with English fallback
+  values; parity test 4/4.
+- **Mobile e2e**: `e2e/regression/mobile-composer.spec.ts` asserts zero overlap
+  among composer controls at 390px (guards the F33 fix).
+
 
 
 
