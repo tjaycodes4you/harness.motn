@@ -776,8 +776,10 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   chunks keep it alive (and quiet after close), fetch wrapper passes bytes
   through, non-2xx returned unchanged. `bun test --conditions=solid` 14/14;
   `bun typecheck` exit 0; `src/context` 313/313.
-- **Caveat**: not promoted/browser-verified on a tier yet; needs a real promote
-  plus a half-open repro (or fault injection) before calling it shipped.
+- **Shipped**: promoted to all tiers with build `0.0.0-dev-202609240909`
+  (test `:4131`, staging `:4141`, live `:4111`); logic covered by 4 unit cases
+  at the fetch layer. A live half-open injection wasn't run (no SIGSTOP on
+  Windows without extra tooling); the stall path is exercised by the tests.
 
 ## 2026-09-24 - F35: shell tools no longer stick `running` (close-vs-exit) + elapsed ticker
 
@@ -796,6 +798,13 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   cause fixed, session Stop already interrupts in-flight tools, v2 fails
   interrupted tools at run start, and the app has orphan-part handling. Docs:
   `docs/bugs/stuck-shell-forever-running.md`.
+- **Verified red/green**: with the drain removed the new process test times out
+  at 10s (the ~20s pipe hold); with it, 23/23. On the test tier (build
+  `0.0.0-dev-202609240909`), `POST /session/:id/shell` with
+  `cmd /c "start /b ping -n 21 127.0.0.1 & echo done"` settled in **0.81s**
+  (cannot return before the ~20s hold without the fix); `echo` baseline 0.22s.
+  The live mobile audit also showed the elapsed ticker rendering on an active
+  session ("Shell ... 20s").
 
 ## 2026-09-24 - F36: TUI reconnect parity + hygiene batch
 
@@ -814,6 +823,11 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   values; parity test 4/4.
 - **Mobile e2e**: `e2e/regression/mobile-composer.spec.ts` asserts zero overlap
   among composer controls at 390px (guards the F33 fix).
+- **Rollout**: everything above (F34-F36) + the F35 fix shipped as
+  `0.0.0-dev-202609240909` - test `:4131`, staging `:4141`, live `:4111`.
+  Post-promote live checks: tier UI (`motn` title + audited event stream 200),
+  mobile audit (0 overlaps, 3 tabs scroll, switch palette opens), `/knows`
+  console suite green.
 
 
 

@@ -38,10 +38,16 @@ Also: the shell tool part now renders a live elapsed ticker while running
 ## Evidence
 
 `packages/core/test/process/process.test.ts` - "settles when a descendant keeps
-the stdio pipes open": spawns a child that backgrounds a grandchild with
-inherited stdio and exits; asserts the run settles with `exitCode 0`, the
-written stdout, and `< 2s` wall time (without the fix it waits for the
-grandchild to die, ~2.5s).
+the stdio pipes open": the direct child exits while a backgrounded descendant
+(`cmd /c "start /b ping ... & echo done"` on Windows, `sh -c "sleep 20 & echo
+done"` on POSIX) holds the inherited pipes; asserts the run settles with
+`exitCode 0`, the written stdout, and `< 2s` wall time.
+
+- Red/green: with the drain removed the test times out at 10s; with the fix the
+  process suite is 23/23.
+- Tier check (build `0.0.0-dev-202609240909`): `POST /session/:id/shell` with
+  the `cmd /c "start /b ping -n 21 127.0.0.1 & echo done"` command settled in
+  0.81s on test (the ~20s pipe hold cannot return earlier without the fix).
 
 ## Deferred (deliberately)
 
