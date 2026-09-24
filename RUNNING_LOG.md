@@ -976,3 +976,32 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 
 
 
+
+## 2026-09-24 - F42: live outage - orphaned backends starved the box; recovery now reaps
+
+- **Incident (18:45:54-18:48, ~2 min public downtime).** The watchdog killed and
+  restarted live front `:4102`, then found live backend `:4113` unhealthy and
+  `-Action backend` started `:4114`. `:4113` was not dead - its health endpoint
+  had stopped answering but the process was alive at **1598 MB** and still
+  listening, so it was never reclaimed.
+- **Root cause.** Every `-Action backend` recovery that replaced an unhealthy
+  backend left the old process running. Over ~2 days the pools accumulated **24
+  orphaned `motn-*` backends totalling ~10.7 GB** (10 stale live listeners
+  4105-4113 alone, plus test/staging from the F41 promotes). The box has 31.8 GB
+  and was down to **4.2 GB free**; that memory pressure is what wedged the front
+  proxy path and the live backend's health endpoint (the `MaxListenersExceeded`
+  EventTarget leak in the fork grows each process toward 1.5 GB).
+- **Fix.** `Ensure-Backend` now stops the backend it replaced when that backend
+  is still unhealthy (a recovered one stays for `drain`); new `motn-deploy
+  -Action reap` sweeps `motn-<tier>-*` processes no state port points at (image
+  path checked, active/previous ports allowlisted); the `backend` action runs it
+  after every recovery; the watchdog runs it every 5 min as a safety net.
+  (Supersedes the F41 ops note about manual pool cleanup.)
+- **Measured.** Reaped 24 orphans + the wedged `:4113` -> free memory **4.2 -> 11
+  GB**, `motn-*` total WS 10.7 GB -> 1.8 GB, live stayed HTTP 200 (0.14s) and the
+  live smoke suite passed 7/7. Each tier now holds only its active + previous
+  pair.
+- **Not fixed (follow-up):** the underlying EventTarget/`MaxListenersExceeded`
+  leak that grows a long-lived backend to ~1.5 GB and eventually wedges its
+  health endpoint. The reap bounds the blast radius; the leak still needs a code
+  fix.
