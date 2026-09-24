@@ -709,6 +709,20 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   reconnect" + "...when the page comes back online" (red without the change,
   full file 10/10 green with it). Details:
   `docs/bugs/stale-timeline-after-stream-loss.md`.
+- **Rollout (2026-09-24)**: build `0.0.0-dev-202609240051` promoted - test
+  `:4097`->`:4128`, staging `:4136`->`:4139`, live `:4102`->`:4109`, all
+  `RESULT: PROMOTED`. Verified per tier with Playwright on the real public
+  URLs (test/staging/live: `motn` title + open audited event stream 200) and
+  live SSE endurance through the front after promote (20s / 2 heartbeats;
+  previously died at 11.7s). Open tabs keep the old client bundle until
+  reload; the front fix benefits them immediately.
+- **Known local failure (pre-existing, not F32)**: `packages/app` `test:unit`
+  is 691/1 - `src/i18n/parity.test.ts` "non-English locales have every English
+  key" (at least one locale is missing `dialog.provider.custom.label`,
+  `dialog.model.unpaid.viewMoreProviders`,
+  `session.header.reveal.{finder,fileExplorer,containingFolder}`). The
+  working tree is clean there, so this is already on `dev`; fix when touching
+  i18n.
 
 
 
