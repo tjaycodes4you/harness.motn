@@ -934,6 +934,37 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
 - Repro: `%TEMP%\harness.motn\btw-verify.py` (pw, screenshot, [front]).
 - Live held by request.
 
+## 2026-09-24 - F41: background tasks get visible results + per-task stop
+
+- **Visible results.** The injected background-task notification was model-only:
+  the synthetic user text was dropped by `UserMessageDisplay`, so the user saw
+  an empty row while the model saw `<task ...>` XML. The injection now carries
+  `metadata.backgroundTask = { sessionID, state, title }` (`tool/task.ts`), and
+  the app renders a notice card ("Background task finished/failed/stopped:
+  <title>") with an **Open task** link to the child session
+  (`message-part.tsx`, `message-part.css`). Cancelled jobs now inject a
+  `state="cancelled"` note too (`notify` handled completed/error only, so a
+  cancel was silent to the parent model).
+- **Per-task stop.** New flag-gated route
+  `POST /experimental/session/:sessionID/background/cancel`
+  (`{ jobId? }` -> cancels running background task jobs, all when omitted;
+  `groups/experimental.ts`, `handlers/experimental.ts`). A background task card
+  whose child session is still busy shows a ghost "Stop task" button that calls
+  it via `motnPost`; 6 new ui keys x18 locales.
+- **Verified on test (`0.0.0-dev-202609242025`, backend `:4133`) and staging
+  (`:4144`), script `%TEMP%\harness.motn\background-result-verify.py`**:
+  detach a `ping -n 25` task -> marker `{state: completed, title}` lands, notice
+  reads `Background task finished: Run ping command`, "Open task" navigates to
+  the child session; detach a `ping -n 46` task, click Stop at +6.5s -> cancelled
+  marker + notice at +8.3s, child session not busy, child assistant message
+  `MessageAbortedError`. 0 page errors both runs.
+- **Ops (M-item):** both test and staging pools filled up (all 10 ports each) -
+  every `promote` orphans the previous rollback backend, and today's promotes
+  stacked them. Cleaned 4126-4133 (test) and 4137-4144 (staging) after verifying
+  each port owner's cmdline (`motn-<tier>-*.exe ... --port N`). A `drain` after
+  each promote (or an orphan sweep in the watchdog) would prevent this.
+- Docs: extended `docs/features/background-subagent-detach.md`. Live held.
+
 
 
 

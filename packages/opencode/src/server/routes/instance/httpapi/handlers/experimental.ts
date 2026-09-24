@@ -171,6 +171,23 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return promoted.some((job) => job !== undefined)
     })
 
+    const sessionBackgroundCancel = Effect.fn("ExperimentalHttpApi.sessionBackgroundCancel")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: { jobId?: string }
+    }) {
+      if (!flags.experimentalBackgroundSubagents) return false
+      const jobs = (yield* background.list()).filter(
+        (job) =>
+          job.type === "task" &&
+          job.status === "running" &&
+          job.metadata?.background === true &&
+          job.metadata?.parentSessionId === ctx.params.sessionID &&
+          (ctx.payload.jobId === undefined || job.id === ctx.payload.jobId),
+      )
+      const cancelled = yield* Effect.forEach(jobs, (job) => background.cancel(job.id), { concurrency: "unbounded" })
+      return cancelled.some((job) => job !== undefined)
+    })
+
     const resource = Effect.fn("ExperimentalHttpApi.resource")(function* () {
       return yield* mcp.resources()
     })
@@ -188,6 +205,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("worktreeReset", worktreeReset)
       .handle("session", session)
       .handle("sessionBackground", sessionBackground)
+      .handle("sessionBackgroundCancel", sessionBackgroundCancel)
       .handle("resource", resource)
   }),
 )

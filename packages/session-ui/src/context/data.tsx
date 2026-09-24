@@ -52,6 +52,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     onSessionHref?: SessionHrefFn
     backgroundSubagents?: () => boolean
     onSessionBackground?: (sessionID: string) => Promise<boolean> | boolean
+    onSessionTaskCancel?: (sessionID: string, jobId: string) => Promise<boolean> | boolean
   }) => {
     return {
       get store() {
@@ -67,6 +68,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       sessionHref: props.onSessionHref,
       backgroundSubagents: props.backgroundSubagents,
       sessionBackground: props.onSessionBackground,
+      sessionTaskCancel: props.onSessionTaskCancel,
     }
   },
 })

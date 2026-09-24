@@ -55,12 +55,33 @@ The server already had the machinery behind
 - Repros in `%TEMP%\harness.motn\`: `subagent-block-repro.py` (before),
   `subagent-detach-verify.py` (after), `subagent-detach-browser.py` (UI).
 
+## Result visibility and per-task stop (F41, build `0.0.0-dev-202609242025`)
+
+- The notification the background job injects into the parent now carries
+  `metadata.backgroundTask = { sessionID, state, title }` (`packages/opencode/src/tool/task.ts`),
+  and `state` includes `cancelled` (previously a cancelled job was silent to the
+  model: `notify` only handled `completed`/`error`).
+- The app renders those synthetic messages as a notice card -
+  "Background task finished/failed/stopped: <title>" with an **Open task** link
+  to the child session (`packages/session-ui/src/components/message-part.tsx`,
+  `message-part.css`); the raw `<task ...>` XML stays model-only.
+- **Stop task**: a background card whose child session is still busy shows a
+  ghost stop button. It calls the new flag-gated route
+  `POST /experimental/session/:sessionID/background/cancel` with the job id
+  (`jobId` optional - omitting it cancels every running background task in the
+  session). Cancelling interrupts the job, which aborts the child run and
+  injects the `cancelled` notice.
+- Verified on test and staging (`%TEMP%\harness.motn\background-result-verify.py`):
+  completed task -> notice + working "Open task" link; clicking Stop at +6.5s ->
+  cancelled notice at +8.3s, child session idle, child message `MessageAbortedError`,
+  0 page errors.
+
 ## Limits
 
 - `BackgroundJob` is process-local and in-memory: a backend restart orphans
   running background tasks (their child sessions stop mid-turn).
 - The model can also choose `background: true` itself now that the flag is on;
-  long-work policy tuning and a visible rendering of the injected result are
-  follow-ups.
-- Staging model runs currently 500 because its isolated data root has no
-  `auth.json` (pre-existing, unrelated); functional checks run on test.
+  long-work policy tuning is a follow-up.
+- Tier pools (10 ports each) fill up because every promote orphans the previous
+  rollback backend; `drain` after a promote or a watchdog orphan sweep is needed
+  (F41 M-item).

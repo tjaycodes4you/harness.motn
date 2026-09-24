@@ -79,6 +79,22 @@ export function DirectoryDataProvider(
       return false
     }
   }
+  const sessionTaskCancel = async (sessionID: string, jobId: string) => {
+    try {
+      return await motnPost<boolean>(
+        serverSDK().server.http,
+        `/experimental/session/${encodeURIComponent(sessionID)}/background/cancel`,
+        { jobId },
+      )
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("ui.tool.task.background.stop.failed"),
+        description: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
+  }
 
   createEffect(() => {
     const sessionID = params.id
@@ -98,6 +114,7 @@ export function DirectoryDataProvider(
           onSessionHref={href}
           backgroundSubagents={backgroundSubagents}
           onSessionBackground={sessionBackground}
+          onSessionTaskCancel={sessionTaskCancel}
         >
           <LocalProvider>{props.children}</LocalProvider>
         </DataProvider>

@@ -63,11 +63,11 @@ export const Parameters = Schema.Struct({
 
 function renderOutput(input: {
   sessionID: SessionID
-  state: "running" | "completed" | "error"
+  state: "running" | "completed" | "error" | "cancelled"
   summary?: string
   text: string
 }) {
-  const tag = input.state === "error" ? "task_error" : "task_result"
+  const tag = input.state === "cancelled" ? "task_cancelled" : input.state === "error" ? "task_error" : "task_result"
   return [
     `<task id="${input.sessionID}" state="${input.state}">`,
     ...(input.summary ? [`<summary>${input.summary}</summary>`] : []),
@@ -214,7 +214,7 @@ export const TaskTool = Tool.define(
       })
 
       const inject = Effect.fn("TaskTool.injectBackgroundResult")(function* (
-        state: "completed" | "error",
+        state: "completed" | "error" | "cancelled",
         text: string,
       ) {
         const currentParent = yield* sessions.get(ctx.sessionID)
@@ -233,9 +233,18 @@ export const TaskTool = Tool.define(
                   summary:
                     state === "completed"
                       ? `Background task completed: ${params.description}`
-                      : `Background task failed: ${params.description}`,
+                      : state === "cancelled"
+                        ? `Background task cancelled: ${params.description}`
+                        : `Background task failed: ${params.description}`,
                   text,
                 }),
+                metadata: {
+                  backgroundTask: {
+                    sessionID: nextSession.id,
+                    state,
+                    title: params.description,
+                  },
+                },
               },
             ],
           })
@@ -247,6 +256,7 @@ export const TaskTool = Tool.define(
           Effect.flatMap((result) => {
             if (result.info?.status === "completed") return inject("completed", result.info.output ?? "")
             if (result.info?.status === "error") return inject("error", result.info.error ?? "")
+            if (result.info?.status === "cancelled") return inject("cancelled", "")
             return Effect.void
           }),
           Effect.forkIn(scope, { startImmediately: true }),

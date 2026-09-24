@@ -47,6 +47,10 @@ export const ConsoleSwitchPayload = Schema.Struct({
   orgID: OrgID,
 })
 
+export const SessionBackgroundCancelPayload = Schema.Struct({
+  jobId: Schema.optional(Schema.String),
+})
+
 const ToolIDs = Schema.Array(Schema.String).annotate({ identifier: "ToolIDs" })
 const ToolListItem = Schema.Struct({
   id: Schema.String,
@@ -98,6 +102,7 @@ export const ExperimentalPaths = {
   worktreeReset: "/experimental/worktree/reset",
   session: "/experimental/session",
   sessionBackground: "/experimental/session/:sessionID/background",
+  sessionBackgroundCancel: "/experimental/session/:sessionID/background/cancel",
   resource: "/experimental/resource",
 } as const
 
@@ -243,6 +248,20 @@ export const ExperimentalApi = HttpApi.make("experimental")
             summary: "Background subagents",
             description:
               "Detach any synchronous subagents currently blocking the session and continue them in the background.",
+          }),
+        ),
+        HttpApiEndpoint.post("sessionBackgroundCancel", ExperimentalPaths.sessionBackgroundCancel, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: SessionBackgroundCancelPayload,
+          success: described(Schema.Boolean, "Cancelled background subagents"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.session.background.cancel",
+            summary: "Cancel background subagents",
+            description:
+              "Cancel running background subagents for the session, or a single job when jobId is given.",
           }),
         ),
         HttpApiEndpoint.get("resource", ExperimentalPaths.resource, {

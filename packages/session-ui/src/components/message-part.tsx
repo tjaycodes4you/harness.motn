@@ -1227,6 +1227,19 @@ export function UserMessageDisplay(props: {
 
   const agents = createMemo(() => (props.parts?.filter((p) => p.type === "agent") as AgentPart[]) ?? [])
 
+  // Background task results arrive as synthetic user messages marked in part
+  // metadata; they are model-visible but would otherwise render as an empty row.
+  const backgroundTasks = createMemo(() =>
+    (props.parts ?? []).flatMap((part) => {
+      if (part.type !== "text" || !part.synthetic) return []
+      const value = part.metadata?.backgroundTask
+      if (!value || typeof value !== "object") return []
+      const task = value as { sessionID?: unknown; state?: unknown; title?: unknown }
+      if (typeof task.sessionID !== "string" || typeof task.state !== "string") return []
+      return [{ sessionID: task.sessionID, state: task.state, title: typeof task.title === "string" ? task.title : "" }]
+    }),
+  )
+
   const model = createMemo(() => {
     const providerID = props.message.model?.providerID
     const modelID = props.message.model?.modelID
@@ -1346,6 +1359,38 @@ export function UserMessageDisplay(props: {
               <UserMessageComments comments={messageComments()} bounded />
             </Show>
           </div>
+        </div>
+      </Show>
+      <Show when={backgroundTasks().length > 0}>
+        <div data-slot="user-message-background-tasks">
+          <For each={backgroundTasks()}>
+            {(task) => (
+              <div data-component="background-task-notice" data-state={task.state}>
+                <span data-slot="background-task-notice-icon">
+                  <IconV2 name="background" size="small" />
+                </span>
+                <span data-slot="background-task-notice-text">
+                  {i18n.t(
+                    task.state === "completed"
+                      ? "ui.tool.task.background.notice.completed"
+                      : task.state === "cancelled"
+                        ? "ui.tool.task.background.notice.cancelled"
+                        : "ui.tool.task.background.notice.failed",
+                    { title: task.title },
+                  )}
+                </span>
+                <Show when={data.navigateToSession}>
+                  <button
+                    type="button"
+                    data-slot="background-task-notice-open"
+                    onClick={() => data.navigateToSession?.(task.sessionID)}
+                  >
+                    {i18n.t("ui.tool.task.background.open")}
+                  </button>
+                </Show>
+              </div>
+            )}
+          </For>
         </div>
       </Show>
       <Show when={props.useV2Actions}>{renderAttachments()}</Show>
@@ -2137,6 +2182,39 @@ ToolRegistry.register({
       }
     }
 
+    // A detached task keeps running as a job; the child session's status is the
+    // store's view of whether that job is still working.
+    const jobId = createMemo(() => (typeof props.metadata.jobId === "string" ? props.metadata.jobId : undefined))
+    const childBusy = createMemo(() => {
+      const id = childSessionId()
+      if (!id) return false
+      const status = data.store.session_status[id]
+      return status !== undefined && status.type !== "idle"
+    })
+    const cancellable = createMemo(
+      () =>
+        props.metadata.background === true &&
+        !!jobId() &&
+        childBusy() &&
+        data.backgroundSubagents?.() === true &&
+        !!data.sessionTaskCancel,
+    )
+    const [cancelling, setCancelling] = createSignal(false)
+    const cancelTask = async (event: MouseEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (cancelling()) return
+      const sessionID = data.sessionID
+      const id = jobId()
+      if (!sessionID || !id) return
+      setCancelling(true)
+      try {
+        await data.sessionTaskCancel?.(sessionID, id)
+      } finally {
+        setCancelling(false)
+      }
+    }
+
     const href = createMemo(() => sessionLink(childSessionId(), data.sessionHref))
     const clickable = createMemo(() => !!(childSessionId() && (data.navigateToSession || href())))
 
@@ -2195,6 +2273,20 @@ ToolRegistry.register({
             </div>
           </div>
         </div>
+        <Show when={cancellable()}>
+          <TooltipV2 value={i18n.t("ui.tool.task.background.stop")} placement="top">
+            <IconButtonV2
+              data-action="task-tool-cancel"
+              type="button"
+              variant="ghost-muted"
+              size="small"
+              disabled={cancelling()}
+              aria-label={i18n.t("ui.tool.task.background.stop")}
+              onClick={(event) => void cancelTask(event)}
+              icon={<IconV2 name="xmark-small" size="small" />}
+            />
+          </TooltipV2>
+        </Show>
         <Show when={backgroundable()}>
           <TooltipV2 value={i18n.t("ui.tool.task.background.action")} placement="top">
             <IconButtonV2

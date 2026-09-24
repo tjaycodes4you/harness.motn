@@ -1583,3 +1583,50 @@ body:not([data-new-layout]) {
     color: var(--text-weak);
   }
 }
+
+[data-slot="user-message-background-tasks"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+}
+
+[data-component="background-task-notice"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 0.5px solid var(--border-weak-base, rgba(127, 127, 127, 0.2));
+  background: color-mix(in srgb, var(--background-base) 92%, transparent);
+  color: var(--text-weak);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-large);
+
+  [data-slot="background-task-notice-icon"] {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  [data-slot="background-task-notice-text"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-slot="background-task-notice-open"] {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--text-strong);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
