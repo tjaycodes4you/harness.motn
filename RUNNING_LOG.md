@@ -1005,3 +1005,7 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   leak that grows a long-lived backend to ~1.5 GB and eventually wedges its
   health endpoint. The reap bounds the blast radius; the leak still needs a code
   fix.
+- **Second bug found while recovering:** the watchdog's single-instance guard
+  matched `harness-watchdog.ps1` on *any* command line, so a freshly started
+  watchdog saw a transient shell that merely read the file and exited itself
+  (heartbeat went stale). Replaced with a `Global\motn-harness-watchdog` mutex.
