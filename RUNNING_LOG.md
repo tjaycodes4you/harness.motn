@@ -701,10 +701,14 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   staging `:4136`->`:4137` via watchdog, hermetic `:4098`->`:4116`). Verified:
   SSE through the front and through the public tunnel stays open **35s+ with 3
   heartbeats**; public console Playwright suite all green; harness root renders.
-- **App-side follow-up (next)**: on `server.connected`, force-sync the open
-  session (`session.sync(id, { force: true })`); the merge engine is already
-  refresh-safe (`server-session.test.ts:1013`). Until that lands, any future
-  stream loss (tunnel/deploy/network) still leaves the visible timeline stale.
+- **App-side fix (landed)**: `packages/app/src/pages/session.tsx` force-syncs
+  the open session on `server.connected` / `global.disposed`, on visibility ->
+  visible, and on `online`. The merge engine is already refresh-safe
+  (`server-session.test.ts:1013`). Regression tests:
+  `session-timeline-transport.spec.ts` "rehydrates the open session after a
+  reconnect" + "...when the page comes back online" (red without the change,
+  full file 10/10 green with it). Details:
+  `docs/bugs/stale-timeline-after-stream-loss.md`.
 
 
 

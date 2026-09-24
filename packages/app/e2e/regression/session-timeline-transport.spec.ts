@@ -103,6 +103,39 @@ test("does not request replay when reconnecting the volatile V2 event stream", a
   expect(connection.headers["last-event-id"]).toBeUndefined()
 })
 
+test("rehydrates the open session after a reconnect", async ({ page }) => {
+  let messageFetches = 0
+  const timeline = await setupTimeline(page, {
+    eventRetry: 10,
+    onMessages: ({ phase }) => {
+      if (phase === "start") messageFetches++
+    },
+  })
+  await expect.poll(() => messageFetches).toBeGreaterThan(0)
+  const initial = messageFetches
+
+  const first = await timeline.transport.waitForConnection()
+  await timeline.transport.error("contract failure")
+  await timeline.transport.waitForConnection({ after: first.id })
+
+  await expect.poll(() => messageFetches).toBeGreaterThan(initial)
+})
+
+test("rehydrates the open session when the page comes back online", async ({ page }) => {
+  let messageFetches = 0
+  await setupTimeline(page, {
+    onMessages: ({ phase }) => {
+      if (phase === "start") messageFetches++
+    },
+  })
+  await expect.poll(() => messageFetches).toBeGreaterThan(0)
+  const initial = messageFetches
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")))
+
+  await expect.poll(() => messageFetches).toBeGreaterThan(initial)
+})
+
 test("passes through non-event fetches", async ({ page }) => {
   const timeline = await setupTimeline(page)
 

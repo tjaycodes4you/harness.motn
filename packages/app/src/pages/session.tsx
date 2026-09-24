@@ -960,6 +960,28 @@ export default function Page() {
   })
   onCleanup(stopVcs)
 
+  // The event stream is live-only: deltas missed while it was down can never be
+  // replayed, and a reconnect only refreshes bootstrap state. Rehydrate the open
+  // session so a dropped stream cannot leave the visible timeline frozen.
+  const refreshTimeline = () => {
+    const id = params.id
+    if (!id) return
+    void untrack(() => sync().session.sync(id, { force: true }))
+  }
+
+  const stopConnectionRefresh = serverSDK().event.listen((evt) => {
+    if (evt.name !== "global") return
+    const type = (evt.details as { type?: string }).type
+    if (type !== "server.connected" && type !== "global.disposed") return
+    refreshTimeline()
+  })
+  onCleanup(stopConnectionRefresh)
+
+  makeEventListener(document, "visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshTimeline()
+  })
+  makeEventListener(window, "online", refreshTimeline)
+
   createEffect(
     on(
       () => sdk().directory,

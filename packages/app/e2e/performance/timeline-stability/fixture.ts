@@ -98,6 +98,7 @@ export async function setupTimeline(
     deviceScaleFactor?: number
     seedHistory?: boolean
     protocol?: "v1" | "v2"
+    onMessages?: (input: { sessionID: string; before?: string; phase: "start" | "end" }) => void
   } = {},
 ) {
   const sessions = input.sessions ?? [session()]
@@ -124,6 +125,7 @@ export async function setupTimeline(
     pageMessages: () => ({
       items: messages,
     }),
+    onMessages: input.onMessages,
   })
   await page.addInitScript((settings) => {
     localStorage.setItem(
