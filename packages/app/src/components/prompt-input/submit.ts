@@ -6,6 +6,7 @@ import { useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { batch, startTransition, type Accessor } from "solid-js"
 import { useTabs } from "@/context/tabs"
 import { useServerSync, type ServerSync } from "@/context/server-sync"
+import { useServer, type ServerConnection } from "@/context/server"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useLocal, type ModelSelection } from "@/context/local"
@@ -18,7 +19,7 @@ import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
-import { ScopedKey } from "@/utils/server-scope"
+import { ScopedKey, SessionRouteKey, SessionStateKey, type ServerScope } from "@/utils/server-scope"
 import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
@@ -198,6 +199,43 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 }
 
+// `/btw <question>` forks the session as it stands and asks the question in the
+// fork, so a side question never lands in the main transcript and never waits
+// behind the main session's run. The fork tab opens scrolled to the question.
+export async function startSideQuestion(input: {
+  api: DirectorySDK["api"]["session"]
+  server: ServerConnection.Key
+  tabs: ReturnType<typeof useTabs>
+  layout: ReturnType<typeof useLayout>
+  scope: ServerScope
+  sessionID: string
+  sessionDirectory: string
+  agent: string
+  model: { providerID: string; modelID: string }
+  variant?: string
+  question: string
+}) {
+  const forked = await input.api.fork({ sessionID: input.sessionID })
+  const title = input.question.length > 80 ? `${input.question.slice(0, 77)}...` : input.question
+  await input.api.rename({ sessionID: forked.id, title: `btw · ${title}` })
+  const messageID = Identifier.ascending("message")
+  input.layout.pendingMessage.set(
+    SessionStateKey.from(input.scope, SessionRouteKey.fromRoute(base64Encode(input.sessionDirectory), forked.id)),
+    messageID,
+  )
+  const tab = input.tabs.addSessionTab({ server: input.server, sessionId: forked.id })
+  input.tabs.select(tab)
+  await input.api.prompt({
+    sessionID: forked.id,
+    id: messageID,
+    agent: input.agent,
+    model: input.model,
+    variant: input.variant,
+    text: input.question,
+    legacyParts: [{ type: "text", text: input.question }],
+  })
+}
+
 type PromptSubmitInput = {
   prompt: ReturnType<typeof usePrompt>
   info: Accessor<{ id: string } | undefined>
@@ -235,6 +273,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const params = useParams()
   const [search] = useSearchParams<{ draftId?: string }>()
   const tabs = useTabs()
+  const server = useServer()
   const pendingKey = (sessionID: string) => ScopedKey.from(sdk().scope, sessionID)
 
   const errorMessage = (err: unknown) => {
@@ -468,6 +507,33 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         input.queueScroll()
       })
       return true
+    }
+
+    const sideQuestion = mode === "normal" ? /^\/btw\s+([\s\S]+)$/.exec(text) : undefined
+    if (sideQuestion && input.info()) {
+      clearContext(submission.target())
+      clearInput()
+      input.onSubmit?.()
+      void startSideQuestion({
+        api: sdk().api.session,
+        server: server.key,
+        tabs,
+        layout,
+        scope: sdk().scope,
+        sessionID: session.id,
+        sessionDirectory,
+        agent,
+        model,
+        variant,
+        question: sideQuestion[1]!.trim(),
+      }).catch((err) => {
+        showToast({
+          title: language.t("prompt.toast.promptSendFailed.title"),
+          description: errorMessage(err),
+        })
+        restoreInput()
+      })
+      return
     }
 
     if (!isNewSession && mode === "normal" && input.shouldQueue?.()) {

@@ -902,12 +902,37 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   ran; click -> card reads `General Ping last line (background)`, button hidden,
   parent turn continues ("The task is running in background."), 0 page errors;
   server metadata `background=true`, `jobId=<child session>`.
-- **Staging**: promoted (`:4136` -> `:4144`, capabilities true). Model runs on
-  staging fail with HTTP 500 (**pre-existing**): its isolated data root
-  `C:\Users\TJ\.harness.motn-staging\data` has no `auth.json` (test's does).
-  Functional verification therefore lives on test.
+- **Staging**: promoted (`:4136` -> `:4144`, capabilities true). Model runs
+  initially failed with HTTP 500 - **pre-existing, fixed same day**: the
+  isolated data root `C:\Users\TJ\.harness.motn-staging\data` had no
+  `auth.json`, and the provider registry only grows the `deepseek` provider
+  when the key exists at boot. Copied test's `auth.json` and re-promoted
+  (`:4145`): `deepseek` present, real prompt returns PONG.
 - Docs: `docs/features/background-subagent-detach.md`. Live promote held by
   request.
+
+## 2026-09-24 - F40: `/btw` side questions (fork-based)
+
+- **Feature**: typing `/btw <question>` in the composer forks the session as it
+  stands (`Session.fork` copies the transcript into a new same-directory
+  session) and asks the question in the fork, which opens in its own tab
+  scrolled to the question. The main transcript never sees the side Q/A, and
+  the main run is never blocked - the fork has its own runner, so side
+  questions work while a task/subagent is mid-flight.
+- **Implementation** (app-only, no server change, no new i18n): interception in
+  `packages/app/src/components/prompt-input/submit.ts` (`/^\/btw\s+(.+)$/`,
+  normal mode, existing session); `startSideQuestion` forks, renames to
+  `btw · <question>` (80-char cap), sets `layout.pendingMessage` for the fork's
+  session key (existing scroll handoff), `tabs.addSessionTab` + `select`, then
+  `api.prompt` with a pre-generated message id so the scroll target matches.
+- **Verified on test (`0.0.0-dev-202609241151`, backend `:4135`) and staging
+  (`:4146`)**: seeded "codeword is ZEBRA"; main session busy with a
+  `ping -n 46` foreground subagent; `/btw What codeword did I tell you?` ->
+  fork tab, question in view (y=623), fork transcript has the answer `ZEBRA`,
+  **main task still running** at answer time, main transcript leak = false,
+  0 page errors. App suite 700/700.
+- Repro: `%TEMP%\harness.motn\btw-verify.py` (pw, screenshot, [front]).
+- Live held by request.
 
 
 
