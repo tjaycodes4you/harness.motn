@@ -829,6 +829,49 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   mobile audit (0 overlaps, 3 tabs scroll, switch palette opens), `/knows`
   console suite green.
 
+## 2026-09-24 - F37: DeepSeek cost accounting silent 2.4x undercount
+
+- 30-day reconciliation (`~/.local/share/harness.motn/motn.db` + `opencode.db`,
+  2026-08-25..2026-09-24): summed session `cost` = **$71.67**; the DeepSeek
+  billing dashboard for the same key/window = **$170**. Same token counters
+  re-priced at published rates (peak windows derived from message timestamps,
+  reasoning billed as output) = **$170.57** - match. Token accounting is sound;
+  the cost tables are not.
+- Cause: catalog `deepseek` entries (`models.opencode.ai/api.json`, cached at
+  `~/.cache/harness.motn/models.json`) are stale and have no peak/off-peak:
+  `deepseek-flash` in 0.15 / out 0.60 / cr 0.003; `deepseek-v4-pro` in 0.435 /
+  out 0.87 / cr 0.003625. Published: flash miss 0.15/0.30, out 0.60/1.20,
+  hit 0.003/0.006; pro miss 0.66/1.32, out 1.98/3.96, hit 0.022/0.044 (peak
+  = 2x, 01:00-04:00 & 06:00-10:00 UTC Mon-Fri; `api-docs.deepseek.com/quick_start/pricing`).
+- Shape: ~8.3B of ~8.5B tokens are cache hits - cache-read rate accuracy
+  dominates any estimate.
+- `GET api.deepseek.com/user/balance` works with the `auth.json` key
+  (balance-only; no usage-history API). Balance at check: $39.18.
+- TODO filed: `TODO.md` (Open) - update pricing tables. Cost math lives at
+  `packages/opencode/src/session/session.ts:391-404`.
+
+## 2026-09-24 - F38: queued follow-ups rendered as "Thinking" (misleading)
+
+- **Symptom**: send a message while a run (or a shell) holds the session - it
+  appeared in the timeline with the Thinking shimmer immediately, though the v1
+  runner had not picked it up. With tool-heavy turns this looked like the model
+  ignored the message for minutes.
+- **Cause**: the timeline treats the last user turn as active
+  (`activeMessageID = turns.at(-1)`) and rendered `Thinking` for any active turn
+  with no assistant parts while status was busy. The runner defers
+  (`effect/runner.ts:115`: while `Running` it only awaits; while `Shell` it parks
+  `ShellThenRun`).
+- **Fix**: detect queued turns (no own assistant + an earlier turn with an
+  assistant whose `time.completed` is unset) and render `TimelineRow.Queued`
+  ("Queued" + clock) instead of `Thinking`/`Retry`; clears when the turn gains
+  its own assistant (`rows.ts`, `message-timeline.tsx`, ui locales).
+- **Route gotcha (M)**: `POST /session/:id/prompt` is not a route - it fell
+  through to the SPA catch-all (HTTP 200 + HTML) and silently no-opped a test
+  setup. Scripted prompts must use `POST /session/:id/message` (`SessionPaths.prompt`).
+- Docs: `docs/features/queued-message-visibility.md`. Regression:
+  `e2e/regression/queued-message-visibility.spec.ts`. Shipped as
+  `0.0.0-dev-202609240932` (test `:4132`, staging `:4143`, live `:4112`).
+
 
 
 

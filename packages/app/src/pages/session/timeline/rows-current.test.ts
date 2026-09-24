@@ -168,6 +168,147 @@ describe("current session timeline rows", () => {
     ])
   })
 
+  test("renders a queued follow-up instead of thinking while the previous turn streams", () => {
+    const source = [
+      { id: "msg_a", type: "user", text: "slow question", time: { created: 1 } },
+      {
+        id: "msg_a1",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [{ type: "text", text: "working" }],
+        time: { created: 2 },
+      },
+      { id: "msg_b", type: "user", text: "queued follow-up", time: { created: 3 } },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      true,
+      "busy",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+    )
+
+    expect(result.rows.map(TimelineRow.key)).toEqual([
+      "user-message:msg_a",
+      "assistant-part:msg_a:msg_a1:text:0",
+      "turn-gap:msg_b",
+      "user-message:msg_b",
+      "queued:msg_b",
+    ])
+  })
+
+  test("keeps queued follow-ups marked while the session retries", () => {
+    const source = [
+      { id: "msg_a", type: "user", text: "slow question", time: { created: 1 } },
+      {
+        id: "msg_a1",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [{ type: "text", text: "working" }],
+        time: { created: 2 },
+      },
+      { id: "msg_b", type: "user", text: "first follow-up", time: { created: 3 } },
+      { id: "msg_c", type: "user", text: "second follow-up", time: { created: 4 } },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      true,
+      "retry",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+    )
+
+    expect(result.activeMessageID).toBe("msg_c")
+    expect(result.rows.map(TimelineRow.key)).toEqual([
+      "user-message:msg_a",
+      "assistant-part:msg_a:msg_a1:text:0",
+      "turn-gap:msg_b",
+      "user-message:msg_b",
+      "queued:msg_b",
+      "turn-gap:msg_c",
+      "user-message:msg_c",
+      "queued:msg_c",
+    ])
+  })
+
+  test("does not mark follow-ups queued once the session is idle", () => {
+    const source = [
+      { id: "msg_a", type: "user", text: "slow question", time: { created: 1 } },
+      {
+        id: "msg_a1",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [{ type: "text", text: "working" }],
+        time: { created: 2, completed: 3 },
+      },
+      { id: "msg_b", type: "user", text: "follow-up", time: { created: 4 } },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      true,
+      "idle",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+    )
+
+    expect(result.rows.map(TimelineRow.key)).toEqual([
+      "user-message:msg_a",
+      "assistant-part:msg_a:msg_a1:text:0",
+      "turn-gap:msg_b",
+      "user-message:msg_b",
+    ])
+  })
+
+  test("renders an active turn's retry state instead of a queued mark", () => {
+    const source = [
+      { id: "msg_a", type: "user", text: "question", time: { created: 1 } },
+      {
+        id: "msg_a1",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [{ type: "text", text: "retrying" }],
+        time: { created: 2 },
+      },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      true,
+      "retry",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+    )
+
+    expect(result.rows.map(TimelineRow.key)).toEqual([
+      "user-message:msg_a",
+      "assistant-part:msg_a:msg_a1:text:0",
+      "retry:msg_a",
+    ])
+  })
+
   test("removes a failed assistant error when the turn continues streaming", () => {
     const source = [
       { id: "msg_user", type: "user", text: "recover", time: { created: 1 } },

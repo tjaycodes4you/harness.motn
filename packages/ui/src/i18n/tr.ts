@@ -94,6 +94,7 @@ export const dict = {
   "ui.sessionTurn.status.makingEdits": "Düzenlemeler yapılıyor",
   "ui.sessionTurn.status.runningCommands": "Komutlar çalıştırılıyor",
   "ui.sessionTurn.status.thinking": "Düşünüyor",
+  "ui.sessionTurn.status.queued": "Sırada",
   "ui.sessionTurn.status.thinkingWithTopic": "Düşünüyor - {{topic}}",
   "ui.sessionTurn.status.gatheringThoughts": "Düşünceler toplanıyor",
   "ui.sessionTurn.status.consideringNextSteps": "Sonraki adımlar değerlendiriliyor",

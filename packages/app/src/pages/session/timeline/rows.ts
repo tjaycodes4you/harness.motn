@@ -81,6 +81,13 @@ export namespace Timeline {
       turnByUserID.set(user.id, turn)
     })
     const activeMessageID = turns.at(-1)?.user.id
+    // A turn whose user message was submitted while an earlier turn is still
+    // streaming waits for the runner to reach the next boundary. Until it does,
+    // the turn has no assistant message of its own and must not look like it is
+    // already being worked on.
+    const streamingTurnIndex = turns.findLastIndex((turn) =>
+      turn.assistants.some((message) => message.time.completed === undefined && !message.error),
+    )
     return {
       activeMessageID,
       rows: turns.flatMap((turn, index) =>
@@ -92,6 +99,10 @@ export namespace Timeline {
           showReasoning,
           status,
           turn.user.id === activeMessageID,
+          status !== "idle" &&
+            streamingTurnIndex >= 0 &&
+            index > streamingTurnIndex &&
+            turn.assistants.length === 0,
           inlineComments,
         ),
       ),
@@ -106,6 +117,7 @@ export namespace Timeline {
     showReasoning: boolean,
     status: SessionStatus["type"],
     isActive: boolean,
+    queued: boolean,
     // v2 renders comments inside the user message attachments row instead of a strip row
     inlineComments: boolean,
   ) {
@@ -190,7 +202,9 @@ export namespace Timeline {
       assistantGroupIndex += 1
     })
 
-    if (isActive && status === "busy" && !error && assistantPartRefs.length === 0) {
+    if (queued) rows.push(new TimelineRow.Queued({ userMessageID: userMessage.id }))
+
+    if (isActive && !queued && status === "busy" && !error && assistantPartRefs.length === 0) {
       const heading = assistantMessages
         .flatMap((message) => getMessageParts(message.id))
         .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))
@@ -222,7 +236,7 @@ export namespace Timeline {
       rows.push(new TimelineRow.NoResponse({ userMessageID: userMessage.id }))
     }
 
-    if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
+    if (isActive && !queued && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
 
     const diffs = uniqueSummaryDiffs(userMessage.summary?.diffs)
     if (diffs.length > 0 && (status === "idle" || !isActive)) {

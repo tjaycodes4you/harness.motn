@@ -144,6 +144,17 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
   )
 }
 
+function TimelineQueuedRow() {
+  const language = useLanguage()
+
+  return (
+    <div data-slot="session-turn-queued">
+      <IconV2 name="clock" size="small" />
+      <span>{language.t("ui.sessionTurn.status.queued")}</span>
+    </div>
+  )
+}
+
 function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
   const language = useLanguage()
   const maxFiles = 10
@@ -1286,6 +1297,16 @@ export function MessageTimeline(props: {
                 reasoningHeading={thinkingRow().reasoningHeading}
                 showReasoningSummaries={settings.general.showReasoningSummaries()}
               />
+            </div>
+          </TimelineRowFrame>
+        )
+      }
+      case "Queued": {
+        const queuedRow = row as Accessor<TimelineRowByTag<"Queued">>
+        return (
+          <TimelineRowFrame row={queuedRow}>
+            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+              <TimelineQueuedRow />
             </div>
           </TimelineRowFrame>
         )

@@ -145,6 +145,10 @@ const icons = {
     viewBox: "0 0 20 20",
     body: `<path d="M5.83333 4.16406L2.5 7.4974L5.83333 10.8307M3.33333 7.4974H17.9167V15.4141H10" stroke="currentColor" stroke-linecap="square"/>`,
   },
+  clock: {
+    viewBox: "0 0 16 16",
+    body: `<path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C11.3137 2 14 4.68629 14 8Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5V8.25L10.25 9.75" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
   history: {
     viewBox: "0 0 16 16",
     body: `<path d="M2 8C2 4.68629 4.68629 2 8 2C11.3137 2 14 4.68629 14 8C14 11.3137 11.3137 14 8 14C5.9 14 3.7 12.7 2.9 10.8M2 8V3.5M2 8H6.5M8 5V8L10 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>`,
