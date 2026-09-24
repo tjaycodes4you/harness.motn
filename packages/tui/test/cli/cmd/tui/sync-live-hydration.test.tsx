@@ -260,3 +260,62 @@ test("a message removed during hydration does not regain stale parts", async () 
     app.renderer.destroy()
   }
 })
+
+test("server.connected forces a rehydrate of the open session", async () => {
+  await using tmp = await tmpdir()
+  await Bun.write(`${tmp.path}/kv.json`, "{}")
+
+  let count = 0
+  const { app, emit, sync } = await mount(
+    (url) => {
+      if (url.pathname === `/session/${sessionID}`) return json(session)
+      if (url.pathname === `/session/${sessionID}/message`) {
+        count++
+        return json([])
+      }
+      if (url.pathname === `/session/${sessionID}/todo` || url.pathname === `/session/${sessionID}/diff`) return json([])
+      return undefined
+    },
+    tmp.path,
+    { type: "session", sessionID },
+  )
+
+  try {
+    await sync.session.sync(sessionID)
+    expect(count).toBe(1)
+
+    await sync.session.sync(sessionID)
+    expect(count).toBe(1)
+
+    emit(global({ id: "evt_connected", type: "server.connected", properties: {} }))
+    await wait(() => count === 2)
+
+    expect(count).toBe(2)
+  } finally {
+    app.renderer.destroy()
+  }
+})
+
+test("server.connected does not hydrate when the open route is not a session", async () => {
+  await using tmp = await tmpdir()
+  await Bun.write(`${tmp.path}/kv.json`, "{}")
+
+  let count = 0
+  const { app, emit } = await mount((url) => {
+    if (url.pathname === `/session/${sessionID}/message`) {
+      count++
+      return json([])
+    }
+    if (url.pathname === `/session/${sessionID}/todo` || url.pathname === `/session/${sessionID}/diff`) return json([])
+    return undefined
+  }, tmp.path)
+
+  try {
+    emit(global({ id: "evt_connected", type: "server.connected", properties: {} }))
+    await Bun.sleep(50)
+
+    expect(count).toBe(0)
+  } finally {
+    app.renderer.destroy()
+  }
+})

@@ -49,13 +49,16 @@ when the cache is older than 15s) or reloads the page.
   session when the page comes back online". Verified red without the page
   change and green with it (2026-09-23); full transport spec 10/10.
 
-## Explicitly not covered
+## Follow-ups landed (2026-09-24, same class)
 
-- The TUI reconnect path has the same gap class (no `server.connected`
-  resync); the web UI was the reported surface.
-- A half-open stream that never errors (network switch without RST) relies on
-  the visibility/online handlers to reconcile; a stall watchdog on the event
-  stream remains a possible follow-up.
+- **TUI parity**: `packages/tui/src/context/sync.tsx` force-resyncs the open
+  session on `server.connected` (external TUI SSE mode) and after
+  `server.instance.disposed` (in-process TUI); covered by new cases in
+  `sync-live-hydration.test.tsx`.
+- **Stall watchdog**: `packages/app/src/context/server-sdk.tsx` aborts an
+  event-stream attempt after 40s with no bytes on the wire, so a half-open
+  stream (network swap, sleeping tab) reconnects instead of leaving the UI
+  frozen. See RUNNING_LOG F34.
 
 ## Related
 

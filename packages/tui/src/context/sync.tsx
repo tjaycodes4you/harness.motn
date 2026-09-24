@@ -24,6 +24,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { useProject } from "./project"
 import { useEvent } from "./event"
 import { useSDK } from "./sdk"
+import { useRoute } from "./route"
 import { useTuiStartup } from "./runtime"
 import { createSimpleContext } from "./helper"
 import { useExit } from "./exit"
@@ -140,6 +141,7 @@ export const {
     const event = useEvent()
     const project = useProject()
     const sdk = useSDK()
+    const route = useRoute()
 
     const fullSyncedSessions = new Set<string>()
     const syncingSessions = new Map<string, Promise<void>>()
@@ -167,10 +169,18 @@ export const {
         .then((x) => (x.data ?? []).toSorted((a, b) => a.id.localeCompare(b.id)))
     }
 
+    function resyncOpenSession() {
+      if (route.data.type !== "session") return
+      void result.session.sync(route.data.sessionID, { force: true }).catch(() => {})
+    }
+
     event.subscribe((event, { directory, workspace }) => {
       switch (event.type) {
+        case "server.connected":
+          resyncOpenSession()
+          break
         case "server.instance.disposed":
-          void bootstrap()
+          void bootstrap().then(resyncOpenSession)
           break
         case "permission.replied": {
           const requests = store.permission[event.properties.sessionID]
@@ -585,7 +595,8 @@ export const {
           if (last.role === "user") return "working"
           return last.time.completed ? "idle" : "working"
         },
-        async sync(sessionID: string) {
+        async sync(sessionID: string, options?: { force?: boolean }) {
+          if (options?.force) fullSyncedSessions.delete(sessionID)
           if (fullSyncedSessions.has(sessionID)) return
           const syncing = syncingSessions.get(sessionID)
           if (syncing) return syncing

@@ -4,6 +4,7 @@ import { onMount } from "solid-js"
 import { ArgsProvider } from "../../../../src/context/args"
 import { KVProvider, useKV } from "../../../../src/context/kv"
 import { ProjectProvider, useProject } from "../../../../src/context/project"
+import { RouteProvider, type Route } from "../../../../src/context/route"
 import { SDKProvider } from "../../../../src/context/sdk"
 import { SyncProvider, useSync } from "../../../../src/context/sync"
 import { PermissionProvider } from "../../../../src/context/permission"
@@ -22,7 +23,7 @@ export async function wait(fn: () => boolean, timeout = 2000) {
 
 type Ctx = { kv: ReturnType<typeof useKV>; project: ReturnType<typeof useProject>; sync: ReturnType<typeof useSync> }
 
-export async function mount(override?: FetchHandler, state?: string) {
+export async function mount(override?: FetchHandler, state?: string, initialRoute?: Route) {
   const calls = createFetch(override)
   const events = createEventSource()
   let sync!: ReturnType<typeof useSync>
@@ -46,21 +47,23 @@ export async function mount(override?: FetchHandler, state?: string) {
 
   const app = await testRender(() => (
     <TestTuiContexts paths={state ? { state } : undefined}>
-      <ArgsProvider>
-        <KVProvider>
-          <SDKProvider url="http://test" directory={directory} fetch={calls.fetch} events={events.source}>
-            <PermissionProvider>
-              <ProjectProvider>
-                <ExitProvider exit={() => {}}>
-                  <SyncProvider>
-                    <Probe />
-                  </SyncProvider>
-                </ExitProvider>
-              </ProjectProvider>
-            </PermissionProvider>
-          </SDKProvider>
-        </KVProvider>
-      </ArgsProvider>
+      <RouteProvider initialRoute={initialRoute}>
+        <ArgsProvider>
+          <KVProvider>
+            <SDKProvider url="http://test" directory={directory} fetch={calls.fetch} events={events.source}>
+              <PermissionProvider>
+                <ProjectProvider>
+                  <ExitProvider exit={() => {}}>
+                    <SyncProvider>
+                      <Probe />
+                    </SyncProvider>
+                  </ExitProvider>
+                </ProjectProvider>
+              </PermissionProvider>
+            </SDKProvider>
+          </KVProvider>
+        </ArgsProvider>
+      </RouteProvider>
     </TestTuiContexts>
   ))
 
