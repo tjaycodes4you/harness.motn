@@ -872,6 +872,43 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   `e2e/regression/queued-message-visibility.spec.ts`. Shipped as
   `0.0.0-dev-202609240932` (test `:4132`, staging `:4143`, live `:4112`).
 
+## 2026-09-24 - F39: subagents blocked the chat; detach them to the background
+
+- **Symptom (reported)**: with a subagent running you could not get anything
+  else done in the same chat. Repro on test (session
+  `ses_f2ce9ebe6ffepX22YSsvcd8T9E`): a `ping -n 31` subagent ran +3.1s..+37.5s;
+  a follow-up submitted at +3.1s was answered at +37.5s, i.e. exactly when the
+  task finished - **34.4s queued**.
+- **Cause**: foreground Task awaits the whole child turn inside the parent
+  provider turn (`tool/task.ts:317`); the v1 runner only promotes queued user
+  input at provider-turn boundaries (`effect/runner.ts:115`), and a tool call in
+  flight is not a boundary. The machinery to fix it already existed behind
+  `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`: `background: true` tasks,
+  `BackgroundJob.promote` and the detach endpoint
+  `POST /experimental/session/:id/background` (`handlers/experimental.ts:159`).
+- **Fix (Layer 1)**: enable the flag on test/staging
+  (`motn-serve-any.cmd`, live held), capability-gate it in the app
+  (`/experimental/capabilities` -> `backgroundSubagents`), and add a
+  "Continue in background" button to the running task card (`detach` icon
+  `background`, tooltip, aria; `message-part.tsx`) that calls the endpoint via
+  `motnPost`; localize the existing hardcoded `(background)` subtitle suffix
+  (3 keys x18 locales, `packages/ui/src/i18n`).
+- **Verified on test (`0.0.0-dev-202609241114`, backend `:4133`), API level**:
+  follow-up admitted +2.6s, detach +4.1s -> task tool part returned
+  `completed (background=True)` at **+0.0s**, follow-up answered **+0.0s** after
+  detach (was +34s), result injected at +37.5s when the subagent actually
+  finished (`<task id=... state="completed">` synthetic message).
+- **Verified browser (Playwright, same build)**: button visible while the task
+  ran; click -> card reads `General Ping last line (background)`, button hidden,
+  parent turn continues ("The task is running in background."), 0 page errors;
+  server metadata `background=true`, `jobId=<child session>`.
+- **Staging**: promoted (`:4136` -> `:4144`, capabilities true). Model runs on
+  staging fail with HTTP 500 (**pre-existing**): its isolated data root
+  `C:\Users\TJ\.harness.motn-staging\data` has no `auth.json` (test's does).
+  Functional verification therefore lives on test.
+- Docs: `docs/features/background-subagent-detach.md`. Live promote held by
+  request.
+
 
 
 

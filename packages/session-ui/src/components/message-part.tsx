@@ -2108,10 +2108,34 @@ ToolRegistry.register({
           ? props.input.description
           : childSessionId()
       if (!value) return value
-      if (props.metadata.background === true) return `${value} (background)`
+      if (props.metadata.background === true) return `${value} (${i18n.t("ui.tool.task.background.label")})`
       return value
     })
     const running = createMemo(() => props.status === "pending" || props.status === "running")
+
+    // A foreground task blocks the parent turn until it finishes. When the
+    // server supports it, the user can detach it instead of waiting.
+    const backgroundable = createMemo(
+      () =>
+        props.status === "running" &&
+        props.metadata.background !== true &&
+        data.backgroundSubagents?.() === true &&
+        !!data.sessionBackground,
+    )
+    const [backgrounding, setBackgrounding] = createSignal(false)
+    const moveToBackground = async (event: MouseEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (backgrounding()) return
+      const sessionID = data.sessionID
+      if (!sessionID) return
+      setBackgrounding(true)
+      try {
+        await data.sessionBackground?.(sessionID)
+      } finally {
+        setBackgrounding(false)
+      }
+    }
 
     const href = createMemo(() => sessionLink(childSessionId(), data.sessionHref))
     const clickable = createMemo(() => !!(childSessionId() && (data.navigateToSession || href())))
@@ -2171,6 +2195,20 @@ ToolRegistry.register({
             </div>
           </div>
         </div>
+        <Show when={backgroundable()}>
+          <TooltipV2 value={i18n.t("ui.tool.task.background.action")} placement="top">
+            <IconButtonV2
+              data-action="task-tool-background"
+              type="button"
+              variant="ghost-muted"
+              size="small"
+              disabled={backgrounding()}
+              aria-label={i18n.t("ui.tool.task.background.action")}
+              onClick={(event) => void moveToBackground(event)}
+              icon={<IconV2 name="background" size="small" />}
+            />
+          </TooltipV2>
+        </Show>
         <Show when={clickable()}>
           <div data-component="task-tool-action">
             <Icon name="square-arrow-top-right" size="small" />

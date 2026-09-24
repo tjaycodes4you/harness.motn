@@ -50,6 +50,8 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     sessionID?: string
     onNavigateToSession?: NavigateToSessionFn
     onSessionHref?: SessionHrefFn
+    backgroundSubagents?: () => boolean
+    onSessionBackground?: (sessionID: string) => Promise<boolean> | boolean
   }) => {
     return {
       get store() {
@@ -63,6 +65,8 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       },
       navigateToSession: props.onNavigateToSession,
       sessionHref: props.onSessionHref,
+      backgroundSubagents: props.backgroundSubagents,
+      sessionBackground: props.onSessionBackground,
     }
   },
 })

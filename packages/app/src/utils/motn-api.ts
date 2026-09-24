@@ -19,3 +19,16 @@ export async function motnPost<T>(server: ServerConnection.HttpBase, path: strin
   }
   return (await response.json()) as T
 }
+
+export async function motnGet<T>(server: ServerConnection.HttpBase, path: string): Promise<T> {
+  const headers: Record<string, string> = { accept: "application/json" }
+  if (server.password) {
+    headers.Authorization = `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`
+  }
+  const response = await fetch(new URL(path, server.url), { method: "GET", headers })
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).trim()
+    throw new Error(`${response.status} ${detail || response.statusText}`.trim())
+  }
+  return (await response.json()) as T
+}

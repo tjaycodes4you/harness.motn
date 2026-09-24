@@ -7,6 +7,8 @@ import { useLanguage } from "@/context/language"
 import { LocalProvider } from "@/context/local"
 import { SDKProvider } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useServerSDK } from "@/context/server-sdk"
+import { motnGet, motnPost } from "@/utils/motn-api"
 import { decode64 } from "@/utils/base64"
 import { Schema } from "effect"
 import type { ServerConnection } from "@/context/server"
@@ -25,6 +27,8 @@ export function DirectoryDataProvider(
   const params = useParams()
   const sync = useSync()
   const serverSync = useServerSync()
+  const serverSDK = useServerSDK()
+  const language = useLanguage()
   const directory = () => (typeof props.directory === "function" ? props.directory() : props.directory)
   const slug = createMemo(() => base64Encode(directory()))
   const href = (sessionID: string) => {
@@ -50,6 +54,32 @@ export function DirectoryDataProvider(
         .catch(() => {}),
   )
 
+  // Detaching a blocking foreground subagent is an experimental server feature;
+  // capabilities decide whether the timeline offers it at all.
+  const [capabilities] = createResource(
+    () => serverSDK().server.http.url,
+    () =>
+      motnGet<{ backgroundSubagents?: boolean }>(serverSDK().server.http, "/experimental/capabilities").catch(
+        () => undefined,
+      ),
+  )
+  const backgroundSubagents = () => capabilities()?.backgroundSubagents === true
+  const sessionBackground = async (sessionID: string) => {
+    try {
+      return await motnPost<boolean>(
+        serverSDK().server.http,
+        `/experimental/session/${encodeURIComponent(sessionID)}/background`,
+      )
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("ui.tool.task.background.failed"),
+        description: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
+  }
+
   createEffect(() => {
     const sessionID = params.id
     if (!sessionID) return
@@ -66,6 +96,8 @@ export function DirectoryDataProvider(
           sessionID={params.id}
           onNavigateToSession={(sessionID: string) => navigate(href(sessionID))}
           onSessionHref={href}
+          backgroundSubagents={backgroundSubagents}
+          onSessionBackground={sessionBackground}
         >
           <LocalProvider>{props.children}</LocalProvider>
         </DataProvider>
