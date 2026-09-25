@@ -7246,6 +7246,7 @@ export type GlobalHealthResponses = {
   200: {
     healthy: true
     version: string
+    build?: string
   }
 }
 
@@ -7857,6 +7858,40 @@ export type ExperimentalSessionBackgroundResponses = {
 
 export type ExperimentalSessionBackgroundResponse =
   ExperimentalSessionBackgroundResponses[keyof ExperimentalSessionBackgroundResponses]
+
+export type ExperimentalSessionBackgroundCancelData = {
+  body?: {
+    jobId?: string
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/session/{sessionID}/background/cancel"
+}
+
+export type ExperimentalSessionBackgroundCancelErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type ExperimentalSessionBackgroundCancelError =
+  ExperimentalSessionBackgroundCancelErrors[keyof ExperimentalSessionBackgroundCancelErrors]
+
+export type ExperimentalSessionBackgroundCancelResponses = {
+  /**
+   * Cancelled background subagents
+   */
+  200: boolean
+}
+
+export type ExperimentalSessionBackgroundCancelResponse =
+  ExperimentalSessionBackgroundCancelResponses[keyof ExperimentalSessionBackgroundCancelResponses]
 
 export type ExperimentalResourceListData = {
   body?: never

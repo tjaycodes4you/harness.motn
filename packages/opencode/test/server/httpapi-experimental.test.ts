@@ -197,6 +197,35 @@ describe("experimental HttpApi", () => {
     },
   )
 
+  it.instance(
+    "background routes are no-ops without running subagents",
+    () =>
+      Effect.gen(function* () {
+        const tmp = yield* TestInstance
+        const session = yield* createSession({ title: "background-noop" })
+        const detach = yield* request(
+          ExperimentalPaths.sessionBackground.replace(":sessionID", session.id),
+          tmp.directory,
+          { method: "POST" },
+        )
+        expect(detach.status).toBe(200)
+        expect(yield* json(detach)).toBe(false)
+
+        const cancel = yield* request(
+          ExperimentalPaths.sessionBackgroundCancel.replace(":sessionID", session.id),
+          tmp.directory,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({}),
+          },
+        )
+        expect(cancel.status).toBe(200)
+        expect(yield* json(cancel)).toBe(false)
+      }),
+    { config: { formatter: false, lsp: false } },
+  )
+
   it.instance("returns declared worktree errors", () =>
     Effect.gen(function* () {
       const tmp = yield* TestInstance

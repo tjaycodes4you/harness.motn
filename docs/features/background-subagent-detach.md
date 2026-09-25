@@ -76,12 +76,56 @@ The server already had the machinery behind
   cancelled notice at +8.3s, child session idle, child message `MessageAbortedError`,
   0 page errors.
 
+## Long-work policy, TUI parity, restart durability (F43, build `0.0.0-dev-202609242356`)
+
+- **Policy.** The task tool's background description and the `background`
+  parameter annotation now tell the model to prefer background mode for
+  long-running independent work (builds, full test suites, large refactors) and
+  to keep foreground when the next step needs the result. Verified live on test:
+  `GET /experimental/tool` returns both strings.
+- **TUI parity** (`packages/tui/src/routes/session/index.tsx`):
+  - Synthetic notices (`metadata.backgroundTask`) render as a notice row
+    (finished/failed/stopped + title) instead of an empty message; clicking
+    navigates to the child session.
+  - A "Stop background tasks" palette command calls
+    `experimental.session.background.cancel` (typed SDK method
+    `client.experimental.session.background2.cancel`; the generated name is
+    `background2` because `background` already names the detach method).
+    Keybind `session.background.cancel` defaults to `none`; enabled only while
+    a background task's child session is still busy.
+  - Not terminal-render-verified (no PTY harness in this environment); logic
+    mirrors the browser-verified app gates, TUI typecheck clean, TUI suite
+    192 pass / 1 pre-existing Windows path-separator failure.
+- **Restart durability.** A background task now writes a marker file
+  (`<data>/background-jobs/<child session>.json`, `packages/opencode/src/background/marker.ts`)
+  when it starts or is detached, and removes it after the completion notice is
+  delivered. On boot, `BackgroundRecovery.init()` (wired into
+  `InstanceBootstrap`, `packages/opencode/src/background/recovery.ts`) reconciles
+  markers for its directory: still-running parts are marked
+  `error/interrupted`, the completion notice the dead process never delivered is
+  appended (state `error`, same synthetic shape the UI already renders), the
+  child's dangling assistant turn is finalized with `MessageAbortedError`, and
+  the marker is removed. Verified end-to-end on test and staging
+  (`%TEMP%\harness.motn\durability-verify.py`): detach -> marker exists -> kill
+  the backend process -> `-Action backend` -> notice injected, marker gone,
+  child `MessageAbortedError`.
+- **Pool sweep.** `-Action promote` now reaps orphaned `motn-<tier>-*` backends
+  before staging its candidate and after the swap; `-Action drain` reaps after
+  retiring the previous backend. This is inline insurance on top of the F42
+  watchdog sweep (every 5 min). Verified by starting a stray backend on a free
+  test-pool port: `-Action reap` -> `REAPED 1`, port free.
+- **Endpoint tests.** `httpapi-exercise` covers the cancel route, and
+  `test/server/httpapi-experimental.test.ts` asserts both background routes are
+  no-ops (`200 false`) without running subagents. Note: the harness shell
+  exports `OPENCODE_SERVER_PASSWORD` / `OPENCODE_CONFIG_DIR` / `OPENCODE_DB`
+  (inherited from the running agent); tests must run with those cleared or every
+  protected route answers `401` and `registry.tools` sees the real config.
+
 ## Limits
 
-- `BackgroundJob` is process-local and in-memory: a backend restart orphans
-  running background tasks (their child sessions stop mid-turn).
-- The model can also choose `background: true` itself now that the flag is on;
-  long-work policy tuning is a follow-up.
-- Tier pools (10 ports each) fill up because every promote orphans the previous
-  rollback backend; `drain` after a promote or a watchdog orphan sweep is needed
-  (F41 M-item).
+- A restart notice is only written when the parent tool part for the task is
+  still present; markers for deleted sessions/parts are dropped silently.
+- `BackgroundJob` is process-local and in-memory; durability covers the parent
+  notification and child session state, not resuming the job itself.
+- Tier pools still fill if a promote is killed before its post-swap reap; the
+  F42 watchdog sweep is the backstop.

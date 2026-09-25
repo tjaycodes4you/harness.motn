@@ -3,6 +3,7 @@ import DESCRIPTION from "./task.txt"
 import { ToolJsonSchema } from "./json-schema"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { BackgroundJob } from "@/background/job"
+import { Marker } from "@/background/marker"
 import { Session } from "@/session/session"
 import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
@@ -25,7 +26,7 @@ const id = "task"
 const BACKGROUND_DESCRIPTION = [
   "Background mode: background=true launches the subagent asynchronously and returns immediately.",
   "Foreground is the default; use it when you need the result before continuing.",
-  "Use background only for independent work that can run while you continue elsewhere.",
+  "Prefer background for long-running independent work — builds, full test suites, large refactors, broad research, anything likely to take minutes — so you can keep working or end your turn instead of blocking.",
   "You will be notified automatically when it finishes.",
 ].join(" ")
 const BACKGROUND_STARTED = [
@@ -57,7 +58,7 @@ export const Parameters = Schema.Struct({
   ...BaseParameterFields,
   background: Schema.optional(Schema.Boolean).annotate({
     description:
-      "Run the agent in the background. You will be notified when it completes. DO NOT sleep, poll, or proactively check on its progress",
+      "Run the agent in the background. You will be notified when it completes. DO NOT sleep, poll, or proactively check on its progress. Prefer this for long-running independent work (minutes), keep foreground when the next step needs the result.",
   }),
 })
 
@@ -248,10 +249,21 @@ export const TaskTool = Tool.define(
               },
             ],
           })
-          .pipe(Effect.ignore, Effect.forkIn(scope, { startImmediately: true }))
+          .pipe(
+            Effect.ensuring(Marker.remove(nextSession.id)),
+            Effect.ignore,
+            Effect.forkIn(scope, { startImmediately: true }),
+          )
       })
 
       const notify = Effect.fn("TaskTool.notifyBackgroundResult")(function* (jobID: string) {
+        yield* Marker.write({
+          childSessionID: nextSession.id,
+          parentSessionID: ctx.sessionID,
+          directory: parent.directory,
+          title: params.description,
+          startedAt: Date.now(),
+        })
         yield* background.wait({ id: jobID }).pipe(
           Effect.flatMap((result) => {
             if (result.info?.status === "completed") return inject("completed", result.info.output ?? "")

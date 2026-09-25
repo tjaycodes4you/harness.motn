@@ -224,6 +224,22 @@ export function Session() {
         )
       : [],
   )
+  const backgroundTasks = createMemo(() =>
+    sync.data.capabilities.experimentalBackgroundSubagents
+      ? messages().flatMap((message) =>
+          (sync.data.part[message.id] ?? []).filter((part): part is ToolPart => {
+            if (part.type !== "tool" || part.tool !== "task") return false
+            if (part.state.status !== "completed") return false
+            const metadata = part.state.metadata
+            if (metadata?.background !== true) return false
+            const child = typeof metadata.jobId === "string" ? metadata.jobId : undefined
+            if (!child) return false
+            const status = sync.data.session_status[child]
+            return status !== undefined && status.type !== "idle"
+          }),
+        )
+      : [],
+  )
   const permissions = createMemo(() => {
     if (session()?.parentID) return []
     return children().flatMap((x) => sync.data.permission[x.id] ?? [])
@@ -1030,6 +1046,20 @@ export function Session() {
       },
     },
     {
+      title: "Stop background tasks",
+      value: "session.background.cancel",
+      category: "Session",
+      hidden: true,
+      enabled: backgroundTasks().length > 0,
+      run: () => {
+        void sdk.client.experimental.session.background2.cancel({
+          sessionID: route.sessionID,
+          workspace: project.workspace.current(),
+        })
+        dialog.clear()
+      },
+    },
+    {
       title: "Go to child session",
       value: "session.child.first",
       category: "Session",
@@ -1114,6 +1144,13 @@ export function Session() {
     enabled: foregroundTasks().length > 0,
     priority: 1,
     bindings: tuiConfig.keybinds.get("session.background"),
+  }))
+
+  useBindings(() => ({
+    mode: OPENCODE_BASE_MODE,
+    enabled: backgroundTasks().length > 0,
+    priority: 1,
+    bindings: tuiConfig.keybinds.get("session.background.cancel"),
   }))
 
   const revertInfo = createMemo(() => session()?.revert)
@@ -1356,6 +1393,8 @@ function UserMessage(props: {
 }) {
   const ctx = use()
   const local = useLocal()
+  const { navigate } = useRoute()
+  const renderer = useRenderer()
   const text = createMemo(() => {
     const texts = props.parts
       .map((x) => {
@@ -1368,6 +1407,25 @@ function UserMessage(props: {
     return texts.join("\n\n")
   })
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
+  const notices = createMemo(() =>
+    props.parts.flatMap((part) => {
+      if (part.type !== "text" || !part.synthetic) return []
+      const value = (
+        part.metadata as
+          | { backgroundTask?: { sessionID?: unknown; state?: unknown; title?: unknown } }
+          | undefined
+      )?.backgroundTask
+      if (!value || typeof value !== "object") return []
+      if (typeof value.sessionID !== "string" || typeof value.state !== "string") return []
+      return [
+        {
+          sessionID: value.sessionID,
+          state: value.state,
+          title: typeof value.title === "string" ? value.title : "",
+        },
+      ]
+    }),
+  )
   const { theme } = useTheme()
   const [hover, setHover] = createSignal(false)
   const queued = createMemo(() => props.pending && props.message.id > props.pending)
@@ -1379,6 +1437,36 @@ function UserMessage(props: {
 
   return (
     <>
+      <For each={notices()}>
+        {(notice) => (
+          <box
+            ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
+            border={["left"]}
+            borderColor={
+              notice.state === "completed" ? theme.success : notice.state === "cancelled" ? theme.textMuted : theme.error
+            }
+            customBorderChars={SplitBorder.customBorderChars}
+            marginTop={props.index === 0 ? 0 : 1}
+            onMouseUp={() => {
+              if (renderer.getSelection()?.getSelectedText()) return
+              if (notice.sessionID) navigate({ type: "session", sessionID: notice.sessionID })
+            }}
+          >
+            <box paddingTop={1} paddingBottom={1} paddingLeft={2} flexShrink={0}>
+              <text fg={theme.textMuted}>
+                <span style={{ fg: theme.text }}>
+                  {notice.state === "completed"
+                    ? "Background task finished"
+                    : notice.state === "cancelled"
+                      ? "Background task stopped"
+                      : "Background task failed"}
+                </span>
+                {notice.title ? `: ${notice.title}` : ""}
+              </text>
+            </box>
+          </box>
+        )}
+      </For>
       <Show when={text()}>
         <box
           id={props.message.id}

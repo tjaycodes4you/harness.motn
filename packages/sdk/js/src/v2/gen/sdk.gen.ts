@@ -42,6 +42,8 @@ import type {
   ExperimentalProjectCopyGenerateNameResponses,
   ExperimentalResourceListErrors,
   ExperimentalResourceListResponses,
+  ExperimentalSessionBackgroundCancelErrors,
+  ExperimentalSessionBackgroundCancelResponses,
   ExperimentalSessionBackgroundErrors,
   ExperimentalSessionBackgroundResponses,
   ExperimentalSessionListErrors,
@@ -802,6 +804,51 @@ export class Console extends HeyApiClient {
   }
 }
 
+export class Background extends HeyApiClient {
+  /**
+   * Cancel background subagents
+   *
+   * Cancel running background subagents for the session, or a single job when jobId is given.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      jobId?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "jobId" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalSessionBackgroundCancelResponses,
+      ExperimentalSessionBackgroundCancelErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/session/{sessionID}/background/cancel",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Session extends HeyApiClient {
   /**
    * List sessions
@@ -883,6 +930,11 @@ export class Session extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _background?: Background
+  get background2(): Background {
+    return (this._background ??= new Background({ client: this.client }))
   }
 }
 

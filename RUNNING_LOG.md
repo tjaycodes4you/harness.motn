@@ -1009,3 +1009,51 @@ project knowledge lives in motnKnows; this file tracks what we changed *here*.
   matched `harness-watchdog.ps1` on *any* command line, so a freshly started
   watchdog saw a transient shell that merely read the file and exited itself
   (heartbeat went stale). Replaced with a `Global\motn-harness-watchdog` mutex.
+
+## 2026-09-24 - F43: background-task docket (policy, TUI, restart durability, route tests, sweep)
+
+Build `0.0.0-dev-202609242356` on test (`:4127`) + staging (`:4137`); live held.
+All five follow-ups from the F41 limits list plus the F41 pool M-item.
+
+- **Endpoint tests.** `httpapi-exercise` gains the
+  `experimental.session.background.cancel` scenario (coverage `missing=0`), and
+  `test/server/httpapi-experimental.test.ts` asserts both background routes are
+  no-ops (`200 false`) with no running subagents. Effect-mode exercise for the
+  two routes: 2 pass.
+- **Pool sweep (F41 M-item, on top of F42).** `motn-deploy -Action promote` now
+  reaps orphans before staging its candidate and after the swap;
+  `-Action drain` reaps after retiring the previous backend. Verified with a
+  stray backend on a free test-pool port: `-Action reap` -> `REAPED 1`, port
+  free. The F42 watchdog sweep stays as the 5-minute backstop.
+- **Long-work policy.** Task-tool background description + `background`
+  parameter now prefer background mode for long-running independent work
+  (builds, full suites, large refactors); verified live via
+  `GET /experimental/tool` (both strings present).
+- **TUI parity** (`packages/tui`). Synthetic `metadata.backgroundTask` notices
+  render as notice rows (click -> child session) instead of empty messages; new
+  hidden palette command "Stop background tasks" calls the cancel route via the
+  regenerated SDK (`client.experimental.session.background2.cancel` - hey-api
+  renamed the group getter because `background` is already the detach method).
+  Keybind `session.background.cancel` default `none`, gated on a busy child
+  session. TUI typecheck clean; suite 192 pass / 1 fail
+  (`abbreviateHome` hardcodes `/` paths - pre-existing on Windows).
+- **Restart durability.** `background/marker.ts` writes
+  `<data>/background-jobs/<child>.json` on background start/detach and removes
+  it after the notice is delivered. Boot `BackgroundRecovery.init()` (wired in
+  `InstanceBootstrap`) reconciles its directory's markers: running parts ->
+  `error/interrupted`, an `error` completion notice appended to the parent (the
+  one the dead process never delivered), child dangling assistant finalized
+  `MessageAbortedError`, marker removed. Unit tests 3/3; e2e on test + staging
+  (`%TEMP%\harness.motn\durability-verify.py`): detach -> marker -> kill backend
+  -> `-Action backend` -> notice injected, marker gone, child aborted. A
+  detached task's tool part is `completed`, not `running`, so the notice (not a
+  part rewrite) is the durable signal; running parts are covered for the small
+  pre-return window.
+- **M-item (test env).** The agent shell exports `OPENCODE_SERVER_PASSWORD`,
+  `OPENCODE_CONFIG_DIR` and `OPENCODE_DB`; running package tests from it makes
+  protected routes answer `401` and makes `registry.tools` read the real config
+  (2 task description tests fail alongside). Clear those vars for test runs.
+- **Pre-existing, not mine:** oxlint's single error is an octal escape in
+  `packages/session-ui/src/v2/components/prompt-input/index.tsx` (`content-['\200B']`,
+  from upstream #37102); `task.test.ts` "description hides denied subagents"
+  flakes when run with the full file (passes in isolation).
